@@ -59,3 +59,12 @@ services:
       # ─── 17. Groq ─────────────────────────────────────────────────────────
       - key: GROQ_API_KEY
         sync: false
+      # ─── 18-21. NVIDIA Dedicated Image Models ──────────────────────────────
+      - key: NVIDIA_KEY_FLUX_KLEIN
+        sync: false
+      - key: NVIDIA_KEY_FLUX_DEV
+        sync: false
+      - key: NVIDIA_KEY_QWEN_IMAGEN
+        sync: false
+      - key: NVIDIA_KEY_SD_35_LARGE
+        sync: false

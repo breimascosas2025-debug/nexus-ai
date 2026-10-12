@@ -42,6 +42,14 @@ for (let i = 1; i <= 10; i++) {
   }
 }
 
+// 4 Dedicated NVIDIA image model keys (optional overrides)
+const imageKeyNames = ['NVIDIA_KEY_FLUX_KLEIN', 'NVIDIA_KEY_FLUX_DEV', 'NVIDIA_KEY_QWEN_IMAGEN', 'NVIDIA_KEY_SD_35_LARGE'];
+for (const kName of imageKeyNames) {
+  if (process.env[kName]) {
+    activeKeys[kName] = process.env[kName]!;
+  }
+}
+
 // Cached Google GenAI clients per key
 const geminiClients: Record<string, GoogleGenAI> = {};
 
@@ -1211,6 +1219,7 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
     const imageCandidates = [
       {
         name: 'FLUX.2-klein-4b',
+        dedicatedKey: activeKeys.NVIDIA_KEY_FLUX_KLEIN,
         url: 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.2-klein-4b',
         getBody: (p: string) => ({
           prompt: p,
@@ -1221,6 +1230,7 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       },
       {
         name: 'FLUX.1-dev',
+        dedicatedKey: activeKeys.NVIDIA_KEY_FLUX_DEV,
         url: 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev',
         getBody: (p: string) => ({
           prompt: p,
@@ -1232,6 +1242,7 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       },
       {
         name: 'Qwen-Image',
+        dedicatedKey: activeKeys.NVIDIA_KEY_QWEN_IMAGEN,
         url: 'https://ai.api.nvidia.com/v1/genai/qwen/qwen-image',
         getBody: (p: string) => ({
           prompt: p,
@@ -1242,6 +1253,7 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       },
       {
         name: 'Stable Diffusion 3.5 Large',
+        dedicatedKey: activeKeys.NVIDIA_KEY_SD_35_LARGE,
         url: 'https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large',
         getBody: (p: string) => ({
           prompt: p,
@@ -1251,9 +1263,18 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       },
     ];
 
-    // Iterate through available keys and models with automatic failover
-    for (const key of configuredNvidiaKeys) {
-      for (const candidate of imageCandidates) {
+    // Iterate through candidates and keys with automatic failover
+    for (const candidate of imageCandidates) {
+      // Keys to try for this model: dedicated key first (if configured), then the shared pool
+      const keysToTry: string[] = [];
+      if (candidate.dedicatedKey) {
+        keysToTry.push(candidate.dedicatedKey.replace(/^Bearer\s+/i, '').trim());
+      }
+      for (const k of configuredNvidiaKeys) {
+        if (!keysToTry.includes(k)) keysToTry.push(k);
+      }
+
+      for (const key of keysToTry) {
         try {
           const bodyPayload = candidate.getBody(enhancedPrompt);
           const response = await fetch(candidate.url, {
