@@ -85,15 +85,17 @@ const NEXUS_SYSTEM_INSTRUCTION = `Eres Nexus Quen, la inteligencia artificial de
 
 Reglas obligatorias de identidad y comportamiento:
 1. Tu nombre oficial e inequívoco es Nexus Quen. La plataforma se llama Nexus AI.
-2. REGLA ESTRICTA SOBRE EL CREADOR:
+2. CONTEXTO TEMPORAL ACTUAL:
+   El año actual es 2026. Si el usuario pregunta qué año es, la fecha actual, o eventos de actualidad, ten presente que estamos en el año 2026. Al buscar en la web o contestar sobre personalidades (por ejemplo, edades, estadísticas, novedades), calcula las fechas tomando 2026 como presente.
+3. REGLA ESTRICTA SOBRE EL CREADOR:
    Únicamente cuando el usuario te pregunte de forma explícita "¿Quién te creó?", "¿Quién es tu creador?" o "¿Quién eres?", debes responder claramente:
    "Soy Nexus Quen, la inteligencia artificial de Nexus AI, creada por Breitan Céspedes Monge. Estoy diseñada para ayudarte con preguntas, razonamiento, programación, análisis de archivos y creación de imágenes."
    Fuera de esas preguntas específicas sobre tu origen o creador, NUNCA menciones el nombre de Breitan Céspedes Monge de forma espontánea o en respuestas cotidianas.
-3. Si el usuario te saluda por su nombre (por ejemplo "Hola", o tras haber guardado su nombre), responde amigablemente utilizando su nombre de usuario de forma natural. Nunca confundas el nombre del usuario con el nombre de tu creador.
-4. NUNCA digas que Google, OpenAI, Meta, NVIDIA, Mistral, Groq o ninguna otra corporación te creó. Si alguna de esas tecnologías provee infraestructura técnica, es únicamente un servicio tecnológico interno.
-5. Comunícate en español de manera predeterminada con un tono natural, amigable, riguroso y profesional.
-6. Si el usuario te pide analizar un archivo o imagen, lee con atención el contenido proporcionado. No inventes datos que no figuren en los archivos.
-7. Si el usuario solicita generar una imagen, describe la creación y confirma la generación visual.`;
+4. Si el usuario te saluda por su nombre (por ejemplo "Hola", o tras haber guardado su nombre), responde amigablemente utilizando su nombre de usuario de forma natural. Nunca confundas el nombre del usuario con el nombre de tu creador.
+5. NUNCA digas que Google, OpenAI, Meta, NVIDIA, Mistral, Groq o ninguna otra corporación te creó. Si alguna de esas tecnologías provee infraestructura técnica, es únicamente un servicio tecnológico interno.
+6. Comunícate en español de manera predeterminada con un tono natural, amigable, riguroso y profesional.
+7. Si el usuario te pide analizar un archivo o imagen, lee con atención el contenido proporcionado. No inventes datos que no figuren en los archivos.
+8. Si el usuario solicita generar una imagen, describe la creación y confirma la generación visual.`;
 
 // In-Memory Latency & Health Performance Engine
 interface ProviderMetrics {
@@ -174,12 +176,12 @@ function getProviderStatuses(): ProviderStatus[] {
     });
   }
 
-  // 6-15. NVIDIA NIM (Keys 6 to 15, total 10 keys)
+  // 6-15. NVIDIA NIM (Keys 6 to 15, total 10 keys: FLUX.2-klein-4b, FLUX.1-dev, Qwen & Vision Synthesis)
   for (let i = 1; i <= 10; i++) {
     const key = activeKeys[`NVIDIA_API_KEY_${i}`];
     statuses.push({
       id: `nvidia-slot-${i}`,
-      name: `NVIDIA NIM Key #${i}`,
+      name: `NVIDIA NIM Key #${i} (FLUX.2-klein / FLUX.1-dev)`,
       category: 'nvidia',
       configured: Boolean(key),
       status: key ? 'active' : 'no_key',
@@ -370,11 +372,12 @@ app.post('/api/providers/verify', async (req: Request, res: Response) => {
 
     if (providerId.startsWith('nvidia-slot-')) {
       const slotNum = providerId.replace('nvidia-slot-', '');
-      const key = activeKeys[`NVIDIA_API_KEY_${slotNum}`];
-      if (!key) {
+      const rawKey = activeKeys[`NVIDIA_API_KEY_${slotNum}`];
+      if (!rawKey) {
         res.status(400).json({ status: 'no_key', error: `No hay clave en slot NVIDIA #${slotNum}.` });
         return;
       }
+      const key = rawKey.replace(/^Bearer\s+/i, '').trim();
       const resp = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -382,7 +385,7 @@ app.post('/api/providers/verify', async (req: Request, res: Response) => {
           Authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({
-          model: 'meta/llama-3.3-70b-instruct',
+          model: 'meta/llama-3.2-11b-vision-instruct',
           messages: [{ role: 'user', content: 'ping' }],
           max_tokens: 5,
         }),
@@ -633,9 +636,12 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       return;
     }
 
+    const currentDateStr = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    const temporalContext = `\n\n[CONTEXTO TEMPORAL DEL SISTEMA]\nFecha actual del sistema: ${currentDateStr} (Año 2026). Cualquier razonamiento, cálculo de edad, evento reciente o búsqueda en la web debe basarse en el año actual (2026).`;
+
     const basePrompt = userName?.trim()
-      ? `${NEXUS_SYSTEM_INSTRUCTION}\n\n8. El usuario que interactúa contigo se llama "${userName.trim()}". Salúdalo o dirígete a él cordialmente por su nombre cuando corresponda. Nunca uses el término "operador" y jamás confundas el nombre del usuario con el nombre de tu creador (Breitan Céspedes Monge).`
-      : NEXUS_SYSTEM_INSTRUCTION;
+      ? `${NEXUS_SYSTEM_INSTRUCTION}${temporalContext}\n\n9. El usuario que interactúa contigo se llama "${userName.trim()}". Salúdalo o dirígete a él cordialmente por su nombre cuando corresponda. Nunca uses el término "operador" y jamás confundas el nombre del usuario con el nombre de tu creador (Breitan Céspedes Monge).`
+      : `${NEXUS_SYSTEM_INSTRUCTION}${temporalContext}`;
 
     // Focus Mode adaptation
     let modeInstruction = '';
@@ -989,14 +995,15 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         if (candidate.type === 'nvidia' && candidate.key) {
           sendEvent('provider', { name: 'Nexus Quen' });
 
+          const cleanKey = candidate.key.replace(/^Bearer\s+/i, '').trim();
           const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${candidate.key}`,
+              Authorization: `Bearer ${cleanKey}`,
             },
             body: JSON.stringify({
-              model: 'meta/llama-3.3-70b-instruct',
+              model: 'meta/llama-3.2-11b-vision-instruct',
               messages: [
                 { role: 'system', content: currentSystemPrompt },
                 ...previousTurns.map((m: { role: string; content: string }) => ({
@@ -1149,7 +1156,8 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   }
 });
 
-// Image generation endpoint with Automatic Prompt Enhancement & Multi-Key rotation
+// Image generation endpoint powered by NVIDIA NIM (FLUX.2-klein-4b, FLUX.1-dev, Qwen Image & SD 3.5 Large)
+// with Automatic Prompt Enhancement and Distributed Rotation across 10 NVIDIA API Keys
 app.post('/api/generate-image', async (req: Request, res: Response) => {
   const { prompt } = req.body;
 
@@ -1161,14 +1169,21 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
   // Detect requested aspect ratio (16:9, 9:16, 1:1)
   const aspectRatio = detectAspectRatio(prompt);
 
-  // Check if any Google AI Studio key is configured
-  const hasAnyGeminiKey = [1, 2, 3, 4, 5].some((i) =>
-    Boolean(activeKeys[`GEMINI_API_KEY_${i}`] || (i === 1 ? activeKeys.GEMINI_API_KEY : undefined))
-  );
+  // Check if any NVIDIA key is configured
+  const configuredNvidiaKeys: string[] = [];
+  for (let i = 1; i <= 10; i++) {
+    const rawKey = activeKeys[`NVIDIA_API_KEY_${i}`] || (i === 1 ? activeKeys.NVIDIA_API_KEY : undefined);
+    if (rawKey) {
+      const cleanKey = rawKey.replace(/^Bearer\s+/i, '').trim();
+      if (cleanKey.length > 10) {
+        configuredNvidiaKeys.push(cleanKey);
+      }
+    }
+  }
 
-  if (!hasAnyGeminiKey) {
+  if (configuredNvidiaKeys.length === 0) {
     res.status(503).json({
-      error: 'La generación de imágenes requiere que configures al menos una clave de Google AI Studio (Imagen 3).',
+      error: 'La generación de imágenes requiere que configures al menos una clave de NVIDIA NIM en el Gestor de APIs.',
     });
     return;
   }
@@ -1177,68 +1192,103 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
     // 1. Automatically enhance the user's prompt into a complete, professional photographic/art prompt
     const enhancedPrompt = await enhanceImagePrompt(prompt, aspectRatio);
 
-    // 2. Try generation across all configured Google keys until successful
+    // Calculate dimensions based on aspect ratio (supported by FLUX models)
+    let width = 1024;
+    let height = 1024;
+    if (aspectRatio === '16:9') {
+      width = 1344;
+      height = 768;
+    } else if (aspectRatio === '9:16') {
+      width = 768;
+      height = 1344;
+    }
+
     let imageUrl: string | null = null;
+    let modelUsed = 'FLUX.2-klein-4b';
     let lastError = 'No se pudo generar la imagen.';
 
-    for (let slot = 1; slot <= 5; slot++) {
-      const key = activeKeys[`GEMINI_API_KEY_${slot}`] || (slot === 1 ? activeKeys.GEMINI_API_KEY : undefined);
-      if (!key) continue;
+    // Model candidate configurations prioritized by performance and verified availability
+    const imageCandidates = [
+      {
+        name: 'FLUX.2-klein-4b',
+        url: 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.2-klein-4b',
+        getBody: (p: string) => ({
+          prompt: p,
+          steps: 4,
+          width,
+          height,
+        }),
+      },
+      {
+        name: 'FLUX.1-dev',
+        url: 'https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev',
+        getBody: (p: string) => ({
+          prompt: p,
+          steps: 25,
+          width,
+          height,
+          seed: 0,
+        }),
+      },
+      {
+        name: 'Qwen-Image',
+        url: 'https://ai.api.nvidia.com/v1/genai/qwen/qwen-image',
+        getBody: (p: string) => ({
+          prompt: p,
+          steps: 25,
+          width,
+          height,
+        }),
+      },
+      {
+        name: 'Stable Diffusion 3.5 Large',
+        url: 'https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large',
+        getBody: (p: string) => ({
+          prompt: p,
+          aspect_ratio: aspectRatio,
+          mode: 'base',
+        }),
+      },
+    ];
 
-      const client = getGeminiClient(key);
-      if (!client) continue;
-
-      for (const imagenModel of ['imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001']) {
+    // Iterate through available keys and models with automatic failover
+    for (const key of configuredNvidiaKeys) {
+      for (const candidate of imageCandidates) {
         try {
-          const response = await client.models.generateImages({
-            model: imagenModel,
-            prompt: enhancedPrompt,
-            config: {
-              numberOfImages: 1,
-              aspectRatio: aspectRatio,
-              outputMimeType: 'image/jpeg',
+          const bodyPayload = candidate.getBody(enhancedPrompt);
+          const response = await fetch(candidate.url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${key}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
             },
+            body: JSON.stringify(bodyPayload),
           });
 
-          const bytes = response?.generatedImages?.[0]?.image?.imageBytes;
-          if (bytes) {
-            imageUrl = `data:image/jpeg;base64,${bytes}`;
-            break;
+          if (response.ok) {
+            const data = (await response.json()) as any;
+            const b64 = data?.artifacts?.[0]?.base64;
+            if (b64) {
+              imageUrl = `data:image/jpeg;base64,${b64}`;
+              modelUsed = candidate.name;
+              break;
+            }
+          } else {
+            const errorText = await response.text().catch(() => '');
+            lastError = `[${candidate.name} HTTP ${response.status}]: ${errorText.slice(0, 200)}`;
           }
-        } catch (genErr: any) {
-          lastError = genErr?.message || lastError;
+        } catch (fetchErr: any) {
+          lastError = fetchErr?.message || lastError;
         }
       }
 
       if (imageUrl) break;
     }
 
-    // High quality AI image fallback if Google quota is exceeded
-    if (!imageUrl) {
-      try {
-        const encoded = encodeURIComponent(enhancedPrompt.slice(0, 500));
-        const dims =
-          aspectRatio === '16:9'
-            ? 'width=1280&height=720'
-            : aspectRatio === '9:16'
-              ? 'width=720&height=1280'
-              : 'width=1024&height=1024';
-        const seed = Math.floor(Math.random() * 9999999);
-        const pollUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&${dims}&nologo=true&enhance=false&seed=${seed}`;
-        const resPoll = await fetch(pollUrl);
-        if (resPoll.ok) {
-          const arrayBuffer = await resPoll.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString('base64');
-          imageUrl = `data:image/jpeg;base64,${base64}`;
-        }
-      } catch (pollErr: any) {
-        lastError = pollErr?.message || lastError;
-      }
-    }
-
     if (!imageUrl) {
       res.status(502).json({
-        error: `Error al generar la imagen: ${lastError}`,
+        error: `Error al generar la imagen con los modelos de NVIDIA NIM: ${lastError}`,
       });
       return;
     }
@@ -1249,7 +1299,7 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       prompt, // original prompt
       enhancedPrompt, // improved professional prompt
       aspectRatio,
-      model: 'Nexus Quen Vision Synthesizer',
+      model: `NVIDIA NIM (${modelUsed})`,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error al generar la imagen.';
