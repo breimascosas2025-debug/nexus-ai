@@ -7,7 +7,7 @@
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "tsx server.ts",
+    "start": "vite build && tsx server.ts",
     "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist',{recursive:true,force:true}); if(fs.existsSync('server.js')) fs.unlinkSync('server.js');\"",
     "lint": "tsc --noEmit"
   },
