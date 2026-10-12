@@ -1,0 +1,61 @@
+services:
+  - type: web
+    name: nexus-ia
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npx tsx server.ts
+    healthCheckPath: /api/ping
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Render inyecta automáticamente esta variable con la URL pública del servicio
+      - key: RENDER_EXTERNAL_URL
+        sync: false
+      # ─── PIN de seguridad ──────────────────────────────────────────────────
+      - key: API_PIN
+        sync: false
+      # ─── 1-5. Google AI Studio (Gemini 2.5 Flash / Pro + Imagen 3) ─────────
+      - key: GEMINI_API_KEY_1
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
+        sync: false
+      - key: GEMINI_API_KEY_5
+        sync: false
+      # Alias retrocompatible
+      - key: GEMINI_API_KEY
+        sync: false
+      # ─── 6-15. NVIDIA NIM (10 keys de Llama 3.3 70B) ──────────────────────
+      - key: NVIDIA_API_KEY_1
+        sync: false
+      - key: NVIDIA_API_KEY_2
+        sync: false
+      - key: NVIDIA_API_KEY_3
+        sync: false
+      - key: NVIDIA_API_KEY_4
+        sync: false
+      - key: NVIDIA_API_KEY_5
+        sync: false
+      - key: NVIDIA_API_KEY_6
+        sync: false
+      - key: NVIDIA_API_KEY_7
+        sync: false
+      - key: NVIDIA_API_KEY_8
+        sync: false
+      - key: NVIDIA_API_KEY_9
+        sync: false
+      - key: NVIDIA_API_KEY_10
+        sync: false
+      # ─── 16. Mistral AI ────────────────────────────────────────────────────
+      - key: MISTRAL_API_KEY
+        sync: false
+      # ─── 17. Groq ─────────────────────────────────────────────────────────
+      - key: GROQ_API_KEY
+        sync: false

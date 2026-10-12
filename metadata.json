@@ -1,0 +1,6 @@
+{
+  "name": "Nexus AI",
+  "description": "Plataforma de inteligencia artificial NEXUS IA con el modelo Nexus Quen. Búsqueda web en vivo, galería visual de imágenes, conmutador de enfoque, exportación profesional y ramificación de mensajes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

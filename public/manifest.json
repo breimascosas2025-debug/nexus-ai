@@ -1,0 +1,18 @@
+{
+  "name": "NEXUS IA — Nexus Quen",
+  "short_name": "NEXUS IA",
+  "description": "Plataforma de inteligencia artificial cuántica multimodal con Nexus Quen.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
