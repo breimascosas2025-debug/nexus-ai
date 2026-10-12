@@ -289,7 +289,7 @@ app.post('/api/providers/verify', async (req: Request, res: Response) => {
         return;
       }
       let testRes: any = null;
-      for (const modelName of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']) {
+      for (const modelName of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite']) {
         try {
           testRes = await client.models.generateContent({
             model: modelName,
@@ -322,7 +322,7 @@ app.post('/api/providers/verify', async (req: Request, res: Response) => {
           Authorization: `Bearer ${groqKey}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: 'qwen/qwen3.8-27b',
           messages: [{ role: 'user', content: 'ping' }],
           max_tokens: 5,
         }),
@@ -351,7 +351,7 @@ app.post('/api/providers/verify', async (req: Request, res: Response) => {
           Authorization: `Bearer ${mistralKey}`,
         },
         body: JSON.stringify({
-          model: 'mistral-large-latest',
+          model: 'ministral-8b-latest',
           messages: [{ role: 'user', content: 'ping' }],
           max_tokens: 5,
         }),
@@ -470,7 +470,7 @@ async function enhanceImagePrompt(userPrompt: string, aspectRatio: '1:1' | '16:9
   if (geminiAvailable) {
     try {
       let response: any = null;
-      for (const m of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']) {
+      for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite']) {
         try {
           response = await geminiAvailable.client.models.generateContent({
             model: m,
@@ -755,8 +755,8 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     // Preferred models for Gemini based on Focus Mode
     const preferredGeminiModels =
       focusMode === 'deep'
-        ? ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash']
-        : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+        ? ['gemini-3.1-pro-preview', 'gemini-3.8-flash', 'gemini-3.7-flash']
+        : ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
 
     // Try candidates in order of fastest response
     for (const candidate of candidates) {
@@ -781,7 +781,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
               Authorization: `Bearer ${candidate.key}`,
             },
             body: JSON.stringify({
-              model: 'llama-3.3-70b-versatile',
+              model: 'qwen/qwen3.8-27b',
               messages: groqMessages,
               stream: true,
               temperature: targetTemperature,
@@ -857,7 +857,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
             if (wantsWebSearch) {
               // 1. Try Google Search Grounding with official models
-              for (const m of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
+              for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash']) {
                 try {
                   const currentTurnParts = [...baseTurnParts, { text: enhancedUserPrompt }];
                   const allContents = [...formattedHistory, { role: 'user', parts: currentTurnParts }];
@@ -1059,7 +1059,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
               Authorization: `Bearer ${candidate.key}`,
             },
             body: JSON.stringify({
-              model: 'mistral-large-latest',
+              model: 'ministral-8b-latest',
               messages: [
                 { role: 'system', content: currentSystemPrompt },
                 ...previousTurns.map((m: { role: string; content: string }) => ({
@@ -1209,9 +1209,31 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       if (imageUrl) break;
     }
 
+    // High quality AI image fallback if Google quota is exceeded
+    if (!imageUrl) {
+      try {
+        const encoded = encodeURIComponent(enhancedPrompt.slice(0, 450));
+        const dims =
+          aspectRatio === '16:9'
+            ? 'width=1280&height=720'
+            : aspectRatio === '9:16'
+              ? 'width=720&height=1280'
+              : 'width=1024&height=1024';
+        const pollUrl = `https://image.pollinations.ai/prompt/${encoded}?${dims}&nologo=true&enhance=false`;
+        const resPoll = await fetch(pollUrl);
+        if (resPoll.ok) {
+          const arrayBuffer = await resPoll.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
+          imageUrl = `data:image/jpeg;base64,${base64}`;
+        }
+      } catch (pollErr: any) {
+        lastError = pollErr?.message || lastError;
+      }
+    }
+
     if (!imageUrl) {
       res.status(502).json({
-        error: `Error al generar la imagen con Imagen 3: ${lastError}`,
+        error: `Error al generar la imagen: ${lastError}`,
       });
       return;
     }
@@ -1222,7 +1244,7 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       prompt, // original prompt
       enhancedPrompt, // improved professional prompt
       aspectRatio,
-      model: 'Nexus Quen Vision Synthesizer (Imagen 3)',
+      model: 'Nexus Quen Vision Synthesizer',
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error al generar la imagen.';
