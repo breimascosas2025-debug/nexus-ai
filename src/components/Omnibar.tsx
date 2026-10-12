@@ -83,8 +83,8 @@ export const Omnibar: React.FC<OmnibarProps> = ({
     let textToSend = inputText.trim();
     if (isImageMode && textToSend) {
       const lower = textToSend.toLowerCase();
-      const hasAction = /\b(haz|crea|genera|diseña|dibuja|pinta|renderiza|sintetiza)\b/i.test(lower);
-      if (!hasAction) {
+      const alreadyDescribesImage = /(imagen|foto|dibujo|wallpaper|ilustración|crea|haz|genera|diseña|dibuja|pinta|renderiza|sintetiza)/i.test(lower);
+      if (!alreadyDescribesImage) {
         textToSend = `Crea una imagen de: ${textToSend}`;
       }
       setIsImageMode(false);

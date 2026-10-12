@@ -475,18 +475,19 @@ async function enhanceImagePrompt(userPrompt: string, aspectRatio: '1:1' | '16:9
         try {
           response = await geminiAvailable.client.models.generateContent({
             model: m,
-            contents: `Eres el optimizador visual de Nexus Quen para generación de imágenes de alta fidelidad.
-Tu tarea es interpretar y expandir profesionalmente la petición del usuario para que el modelo de síntesis visual produzca una obra con la máxima calidad y detalle.
+            contents: `You are the master AI visual prompt engineer for high-end image diffusion models (Flux and Midjourney).
+Convert and expand the user's request into a stunning, descriptive English prompt tailored for photorealistic or artistic synthesis.
 
-Petición del usuario: "${userPrompt}"
-Relación de aspecto: ${aspectRatio}
+User request: "${userPrompt}"
+Aspect ratio: ${aspectRatio}
 
-Reglas estrictas:
-1. Conserva la idea y temática original del usuario.
-2. Si el usuario pide explícitamente una palabra o texto visible (ejemplo: 'hola', 'bienvenido', un nombre), DEBES incluirlo de forma visible, destacada y entre comillas literales: palabra "TEXTO" con tipografía moderna, clara y legible.
-3. Añade detalles de composición visual equilibrada, iluminación (volumétrica, cinematográfica o de estudio), paleta de colores armoniosa, texturas ricas y acabado pulido de alta resolución.
-4. Si la relación de aspecto es 16:9, especifica composición panorámica cinematográfica. Si es 9:16, especifica composición vertical elegante. Si es 1:1, especifica encuadre centrado y simétrico.
-5. Devuelve ÚNICAMENTE el prompt descriptivo optimizado en español, sin preámbulos, saludos ni notas explicativas.`,
+Strict Rules:
+1. PRESERVE THE EXACT SUBJECT: If the user asks for typography/words, landscapes, technology, animals, etc., focus strictly on that subject. Never insert random people, brides, or wedding dresses unless explicitly requested.
+2. TEXT & TYPOGRAPHY: If the user asks for words, letters or signs (for example: "HOLA", "BIENVENIDO", a specific title or name), you MUST feature the exact word in literal double quotes with bold 3D typography, neon letters, or sculpted letters.
+3. VISUAL COMPOSITION: Add lighting (cinematic, volumetric, studio, or golden hour), balanced color palette, fine materials, crisp textures, and 8k detail.
+4. If aspect ratio is 16:9, specify wide panoramic composition. If 9:16, specify vertical portrait composition. If 1:1, specify symmetrical centered composition.
+5. REMOVE CONVERSATIONAL FILLER: Strip phrases like "hazme una imagen", "create an image of", "dibuja", etc.
+6. Return ONLY the English prompt. No greetings, introductions, quotation wrappers or explanations.`,
           });
           if (response?.text) break;
         } catch {
@@ -494,8 +495,8 @@ Reglas estrictas:
         }
       }
 
-      const text = response?.text?.trim();
-      if (text && text.length > 25) {
+      const text = response?.text?.trim().replace(/^["']|["']$/g, '');
+      if (text && text.length > 20) {
         return text;
       }
     } catch {
@@ -506,12 +507,14 @@ Reglas estrictas:
   // Algorithmic fallback
   const orient =
     aspectRatio === '16:9'
-      ? 'en formato horizontal panorámico 16:9'
+      ? 'wide 16:9 cinematic composition'
       : aspectRatio === '9:16'
-        ? 'en formato vertical estilizado 9:16'
-        : 'en formato cuadrado equilibrado 1:1';
+        ? 'vertical 9:16 portrait composition'
+        : 'centered 1:1 balanced composition';
 
-  return `Diseño visual de alta calidad ${orient}, composición equilibrada, iluminación profesional, paleta de colores armoniosa, detalles nítidos y estética cinematográfica: ${userPrompt}. Respetando exactamente los textos y elementos visuales solicitados.`;
+  const cleanPrompt = userPrompt.replace(/^(crea|hazme|haz|genera|diseña|dibuja|pinta)\s+(una\s+)?(imagen|foto|dibujo|ilustración)\s*(de|que\s+diga)?\s*:?/i, '').trim();
+
+  return `High quality ${orient}, photorealistic, stunning lighting, vivid colors, crisp focus, 8k resolution: ${cleanPrompt}`;
 }
 
 // Web grounding fallback using Wikipedia API and DuckDuckGo instant summary
@@ -1213,14 +1216,15 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
     // High quality AI image fallback if Google quota is exceeded
     if (!imageUrl) {
       try {
-        const encoded = encodeURIComponent(enhancedPrompt.slice(0, 450));
+        const encoded = encodeURIComponent(enhancedPrompt.slice(0, 500));
         const dims =
           aspectRatio === '16:9'
             ? 'width=1280&height=720'
             : aspectRatio === '9:16'
               ? 'width=720&height=1280'
               : 'width=1024&height=1024';
-        const pollUrl = `https://image.pollinations.ai/prompt/${encoded}?${dims}&nologo=true&enhance=false`;
+        const seed = Math.floor(Math.random() * 9999999);
+        const pollUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&${dims}&nologo=true&enhance=false&seed=${seed}`;
         const resPoll = await fetch(pollUrl);
         if (resPoll.ok) {
           const arrayBuffer = await resPoll.arrayBuffer();
