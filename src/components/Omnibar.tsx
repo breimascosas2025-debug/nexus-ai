@@ -6,7 +6,7 @@ interface OmnibarProps {
   onCancelGeneration: () => void;
   isProcessing: boolean;
   statusText?: string;
-  onTriggerImageMode: () => void;
+  onTriggerImageMode?: () => void;
   isWebSearchActive: boolean;
   onToggleWebSearch: () => void;
 }
@@ -22,8 +22,22 @@ export const Omnibar: React.FC<OmnibarProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isImageMode, setIsImageMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleToggleImageMode = () => {
+    const next = !isImageMode;
+    setIsImageMode(next);
+    if (next) {
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 50);
+    }
+    if (onTriggerImageMode) {
+      onTriggerImageMode();
+    }
+  };
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -66,7 +80,16 @@ export const Omnibar: React.FC<OmnibarProps> = ({
 
   const handleSubmit = () => {
     if ((!inputText.trim() && attachments.length === 0) || isProcessing) return;
-    onSendMessage(inputText.trim(), attachments, isWebSearchActive);
+    let textToSend = inputText.trim();
+    if (isImageMode && textToSend) {
+      const lower = textToSend.toLowerCase();
+      const hasAction = /\b(haz|crea|genera|diseña|dibuja|pinta|renderiza|sintetiza)\b/i.test(lower);
+      if (!hasAction) {
+        textToSend = `Crea una imagen de: ${textToSend}`;
+      }
+      setIsImageMode(false);
+    }
+    onSendMessage(textToSend, attachments, isWebSearchActive);
     setInputText('');
     setAttachments([]);
     if (textareaRef.current) {
@@ -163,6 +186,24 @@ export const Omnibar: React.FC<OmnibarProps> = ({
             </div>
           )}
 
+          {/* Active Image Mode Indicator Pill */}
+          {isImageMode && (
+            <div className="mb-1.5 px-2.5 py-1 rounded-lg bg-purple-950/90 border border-purple-400/60 text-[11px] text-purple-200 font-mono flex items-center justify-between w-fit gap-2 shadow-[0_0_15px_rgba(168,85,247,0.35)] animate-fade-in">
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm text-purple-300">image</span>
+                <span className="font-semibold text-purple-300">Modo Imagen Activado:</span>
+                <span>Nexus Quen creará la imagen que describas</span>
+              </span>
+              <button
+                onClick={() => setIsImageMode(false)}
+                className="hover:text-red-400 ml-1 cursor-pointer font-bold px-1"
+                title="Desactivar modo imagen"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Main Controls Row */}
           <div className="flex items-center gap-1.5 md:gap-2">
             {/* Hidden File Input */}
@@ -188,9 +229,17 @@ export const Omnibar: React.FC<OmnibarProps> = ({
 
             {/* Image Mode Shortcut Button */}
             <button
-              onClick={onTriggerImageMode}
-              className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30 flex items-center justify-center transition-transform active:scale-90 flex-shrink-0 cursor-pointer"
-              title="Crear Imagen con Nexus Quen"
+              onClick={handleToggleImageMode}
+              className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all active:scale-90 flex-shrink-0 cursor-pointer ${
+                isImageMode
+                  ? 'bg-purple-600/40 text-purple-200 border border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.5)] scale-105'
+                  : 'bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30'
+              }`}
+              title={
+                isImageMode
+                  ? 'Modo Imagen Activado (haz clic para desactivar)'
+                  : 'Activar Modo Imagen (Nexus Quen creará lo que escribas)'
+              }
             >
               <span className="material-symbols-outlined text-lg md:text-xl" data-icon="image">
                 image
@@ -229,9 +278,11 @@ export const Omnibar: React.FC<OmnibarProps> = ({
                 onKeyDown={handleKeyDown}
                 rows={1}
                 placeholder={
-                  isWebSearchActive
-                    ? 'Pregunta a Nexus Quen con búsqueda web en vivo...'
-                    : 'Pregunta a Nexus Quen o pide crear una imagen...'
+                  isImageMode
+                    ? 'Describe la imagen que deseas crear...'
+                    : isWebSearchActive
+                      ? 'Pregunta a Nexus Quen con búsqueda web en vivo...'
+                      : 'Pregunta a Nexus Quen o pide crear una imagen...'
                 }
                 className="w-full bg-transparent border-0 text-slate-100 placeholder:text-slate-500 focus:ring-0 text-sm md:text-base py-2 px-1 focus:outline-none resize-none leading-relaxed"
               />

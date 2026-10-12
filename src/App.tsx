@@ -1039,11 +1039,6 @@ export default function App() {
         statusText={statusText}
         isWebSearchActive={isWebSearchActive}
         onToggleWebSearch={() => setIsWebSearchActive(!isWebSearchActive)}
-        onTriggerImageMode={() =>
-          handleSendMessage(
-            'Diseña una imagen horizontal en formato 16:9 con estética futurista de Nexus AI.'
-          )
-        }
       />
 
       {/* Image Lightbox Modal */}

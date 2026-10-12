@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 
@@ -1284,19 +1285,34 @@ function startKeepAlive() {
   console.log(`[KeepAlive] Auto-ping activado cada 4 min → ${externalUrl}`);
 }
 
-// ─── Start Express server and mount Vite ──────────────────────────────────────
+// ─── Start Express server and mount Vite / Static files ────────────────────────
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  const distDir = path.join(__dirname, 'dist');
+  const indexHtml = path.join(distDir, 'index.html');
+
+  if (fs.existsSync(indexHtml)) {
+    console.log(`[Server] Serving production build from ${distDir}`);
+    app.use(express.static(distDir));
+    app.get('*', (_req: Request, res: Response) => {
+      res.sendFile(indexHtml);
+    });
+  } else {
+    console.log('[Server] Starting Vite development middleware');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    app.get('*', async (req, res, next) => {
+      try {
+        const url = req.originalUrl;
+        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        next(e);
+      }
     });
   }
 
