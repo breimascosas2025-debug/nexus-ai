@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ChatThread } from '../types';
 
 interface NavigationDrawerProps {
@@ -125,7 +125,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             {fastestLatency ? `Auto-Velocidad • ${fastestLatency}ms` : 'Sinapsis Activa • v4.5'}
           </span>
           <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-            Nexus Quen
+            Nexus Qwen
           </span>
         </div>
 
@@ -350,7 +350,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               <span className="text-cyan-400 font-mono">v4.5-cinematic</span>
             </div>
             <div className="text-[10px] text-slate-500">
-              Modelo soberano <strong className="text-slate-400">Nexus Quen</strong>.
+              Modelo soberano <strong className="text-slate-400">Nexus Qwen</strong>.
             </div>
           </div>
         </div>

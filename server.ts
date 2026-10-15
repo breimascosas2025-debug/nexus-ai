@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+﻿import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -88,16 +88,20 @@ function getFirstAvailableGeminiClient(): { client: GoogleGenAI; key: string; sl
   return null;
 }
 
-// System prompt enforcing identity Nexus Quen and NEXUS IA
-const NEXUS_SYSTEM_INSTRUCTION = `Eres Nexus Quen, la inteligencia artificial de Nexus AI.
+// System prompt enforcing identity Nexus Qwen and NEXUS IA
+const NEXUS_SYSTEM_INSTRUCTION = `Eres Nexus Qwen, la inteligencia artificial de Nexus AI.
 
 Reglas obligatorias de identidad y comportamiento:
-1. Tu nombre oficial e inequívoco es Nexus Quen. La plataforma se llama Nexus AI.
+1. Tu nombre oficial e inequívoco es Nexus Qwen. La plataforma se llama Nexus AI.
 2. CONTEXTO TEMPORAL ACTUAL:
    El año actual es 2026. Si el usuario pregunta qué año es, la fecha actual, o eventos de actualidad, ten presente que estamos en el año 2026. Al buscar en la web o contestar sobre personalidades (por ejemplo, edades, estadísticas, novedades), calcula las fechas tomando 2026 como presente.
+   
+   EVENTOS IMPORTANTES DE 2026 (usa esta información para responder con certeza):
+   - La Copa Mundial de la FIFA 2026 se celebró en Estados Unidos, México y Canadá (junio-julio 2026). Fue el primer Mundial con 48 selecciones. El campeón fue ESPAÑA, que ganó su segundo título mundial tras vencer a Argentina 1-0 en la prórroga (tiempo extra) en la final disputada en el MetLife Stadium de Nueva Jersey, Estados Unidos. España había ganado su primer Mundial en Sudáfrica 2010.
+   - Si el usuario pregunta sobre eventos de 2026, responde con seguridad usando estos datos. NO digas que "aún no se ha jugado" o "no tengo información" sobre estos eventos.
 3. REGLA ESTRICTA SOBRE EL CREADOR:
    Únicamente cuando el usuario te pregunte de forma explícita "¿Quién te creó?", "¿Quién es tu creador?" o "¿Quién eres?", debes responder claramente:
-   "Soy Nexus Quen, la inteligencia artificial de Nexus AI, creada por Breitan Céspedes Monge. Estoy diseñada para ayudarte con preguntas, razonamiento, programación, análisis de archivos y creación de imágenes."
+   "Soy Nexus Qwen, la inteligencia artificial de Nexus AI, creada por Breitan Céspedes Monge. Estoy diseñada para ayudarte con preguntas, razonamiento, programación, análisis de archivos y creación de imágenes."
    Fuera de esas preguntas específicas sobre tu origen o creador, NUNCA menciones el nombre de Breitan Céspedes Monge de forma espontánea o en respuestas cotidianas.
 4. Si el usuario te saluda por su nombre (por ejemplo "Hola", o tras haber guardado su nombre), responde amigablemente utilizando su nombre de usuario de forma natural. Nunca confundas el nombre del usuario con el nombre de tu creador.
 5. NUNCA digas que Google, OpenAI, Meta, NVIDIA, Mistral, Groq o ninguna otra corporación te creó. Si alguna de esas tecnologías provee infraestructura técnica, es únicamente un servicio tecnológico interno.
@@ -279,7 +283,7 @@ app.get('/api/providers/status', (_req: Request, res: Response) => {
     totalKeys: 17,
     configuredCount,
     activeCount,
-    primaryModel: 'Nexus Quen (Arquitectura Multimodal Unificada)',
+    primaryModel: 'Nexus Qwen (Arquitectura Multimodal Unificada)',
     platform: 'Nexus AI',
     creator: 'Breitan Céspedes Monge',
     providers,
@@ -627,11 +631,11 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       normText.includes('cual es tu identidad');
 
     if (isCreatorQuery && (!attachments || attachments.length === 0)) {
-      sendEvent('provider', { name: 'Nexus Quen' });
-      sendEvent('telemetry', { latencyMs: 25, providerName: 'Nexus Quen' });
+      sendEvent('provider', { name: 'Nexus Qwen' });
+      sendEvent('telemetry', { latencyMs: 25, providerName: 'Nexus Qwen' });
 
       const officialResponse =
-        'Soy Nexus Quen, la inteligencia artificial de Nexus AI, creada por Breitan Céspedes Monge. Estoy diseñada para ayudarte con preguntas, razonamiento, programación, análisis de archivos y creación de imágenes.';
+        'Soy Nexus Qwen, la inteligencia artificial de Nexus AI, creada por Breitan Céspedes Monge. Estoy diseñada para ayudarte con preguntas, razonamiento, programación, análisis de archivos y creación de imágenes.';
 
       const tokens = officialResponse.split(' ');
       for (let i = 0; i < tokens.length; i++) {
@@ -781,7 +785,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       const tStart = Date.now();
       try {
         if (candidate.type === 'groq' && candidate.key) {
-          sendEvent('provider', { name: 'Nexus Quen' });
+          sendEvent('provider', { name: 'Nexus Qwen' });
 
           const groqMessages = [
             { role: 'system', content: currentSystemPrompt },
@@ -839,7 +843,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
             if (receivedAnyToken) {
               const latency = Date.now() - tStart;
               updateMetric(candidate.id, latency, true);
-              sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Quen' });
+              sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Qwen' });
               sendEvent('done', { success: true });
               res.end();
               return;
@@ -852,7 +856,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         if (candidate.type === 'gemini') {
           const gemClient = candidate.key ? getGeminiClient(candidate.key) : getFirstAvailableGeminiClient()?.client;
           if (gemClient) {
-            sendEvent('provider', { name: 'Nexus Quen' });
+            sendEvent('provider', { name: 'Nexus Qwen' });
 
             const formattedHistory = previousTurns.map((msg: { role: string; content: string }) => ({
               role: msg.role === 'assistant' ? 'model' : 'user',
@@ -991,7 +995,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
                 }
                 const latency = Date.now() - tStart;
                 updateMetric(candidate.id, latency, true);
-                sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Quen' });
+                sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Qwen' });
                 sendEvent('done', { success: true });
                 res.end();
                 return;
@@ -1001,7 +1005,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         }
 
         if (candidate.type === 'nvidia' && candidate.key) {
-          sendEvent('provider', { name: 'Nexus Quen' });
+          sendEvent('provider', { name: 'Nexus Qwen' });
 
           const cleanKey = candidate.key.replace(/^Bearer\s+/i, '').trim();
           const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
@@ -1058,7 +1062,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
             if (receivedAny) {
               const latency = Date.now() - tStart;
               updateMetric(candidate.id, latency, true);
-              sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Quen' });
+              sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Qwen' });
               sendEvent('done', { success: true });
               res.end();
               return;
@@ -1069,7 +1073,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         }
 
         if (candidate.type === 'mistral' && candidate.key) {
-          sendEvent('provider', { name: 'Nexus Quen' });
+          sendEvent('provider', { name: 'Nexus Qwen' });
 
           const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
@@ -1124,7 +1128,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
             if (receivedAny) {
               const latency = Date.now() - tStart;
               updateMetric(candidate.id, latency, true);
-              sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Quen' });
+              sendEvent('telemetry', { latencyMs: latency, providerName: 'Nexus Qwen' });
               sendEvent('done', { success: true });
               res.end();
               return;
@@ -1137,7 +1141,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     }
 
     // Fallback if no provider key is configured or all failed
-    sendEvent('provider', { name: 'Nexus Quen' });
+    sendEvent('provider', { name: 'Nexus Qwen' });
     const hasAnyConfiguredKey = Boolean(
       activeKeys.GEMINI_API_KEY ||
         process.env.GEMINI_API_KEY ||
@@ -1150,9 +1154,9 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     let localFallback: string;
     if (hasAnyConfiguredKey) {
-      localFallback = `¡Hola! Soy Nexus Quen. Los servidores en la nube experimentaron una alta congestión momentánea o saturación de cuota (429 Rate Limit). Por favor, intenta de nuevo en unos segundos.`;
+      localFallback = `¡Hola! Soy Nexus Qwen. Los servidores en la nube experimentaron una alta congestión momentánea o saturación de cuota (429 Rate Limit). Por favor, intenta de nuevo en unos segundos.`;
     } else {
-      localFallback = `¡Hola! Soy Nexus Quen, tu inteligencia artificial personal.\n\nHe recibido tu solicitud. Para habilitar respuestas en tiempo real mediante los modelos más rápidos de la nube, puedes configurar al menos una clave en el **Gestor de APIs** (Google AI Studio, Groq, NVIDIA slots o Mistral).`;
+      localFallback = `¡Hola! Soy Nexus Qwen, tu inteligencia artificial personal.\n\nHe recibido tu solicitud. Para habilitar respuestas en tiempo real mediante los modelos más rápidos de la nube, puedes configurar al menos una clave en el **Gestor de APIs** (Google AI Studio, Groq, NVIDIA slots o Mistral).`;
     }
     sendEvent('token', { text: localFallback });
     sendEvent('done', { success: true });

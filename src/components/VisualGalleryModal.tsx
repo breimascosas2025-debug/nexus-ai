@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { GalleryImage } from '../types';
 
 interface VisualGalleryModalProps {
@@ -69,7 +69,7 @@ export const VisualGalleryModal: React.FC<VisualGalleryModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base md:text-lg font-bold text-slate-100">
-                  Galería Visual de Nexus Quen
+                  Galería Visual de Nexus Qwen
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-cyan-950 border border-cyan-500/40 text-cyan-300">
                   {images.length} {images.length === 1 ? 'creación' : 'creaciones'}
@@ -142,7 +142,7 @@ export const VisualGalleryModal: React.FC<VisualGalleryModalProps> = ({
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mb-4">
                 {images.length === 0
-                  ? 'Pide a Nexus Quen "Hazme una imagen de..." en el chat para crear obras visuales con optimización automática.'
+                  ? 'Pide a Nexus Qwen "Hazme una imagen de..." en el chat para crear obras visuales con optimización automática.'
                   : 'Prueba cambiando los filtros de formato o el término de búsqueda.'}
               </p>
               {images.length === 0 && onTriggerNewImage && (
@@ -207,7 +207,7 @@ export const VisualGalleryModal: React.FC<VisualGalleryModalProps> = ({
 
                     <div className="flex items-center justify-between text-[10px] text-slate-500 border-t border-slate-800/80 pt-2 font-mono">
                       <span>{new Date(img.timestamp).toLocaleDateString()}</span>
-                      <span className="text-cyan-400/80">Nexus Quen</span>
+                      <span className="text-cyan-400/80">Nexus Qwen</span>
                     </div>
                   </div>
                 </div>
@@ -278,7 +278,7 @@ export const VisualGalleryModal: React.FC<VisualGalleryModalProps> = ({
                         <span className="material-symbols-outlined text-sm">
                           {showEnhanced ? 'expand_less' : 'expand_more'}
                         </span>
-                        <span>Prompt Optimizado por Nexus Quen</span>
+                        <span>Prompt Optimizado por Nexus Qwen</span>
                       </span>
                       <span className="text-[10px] text-slate-500">IA Enhanced</span>
                     </button>
@@ -300,7 +300,7 @@ export const VisualGalleryModal: React.FC<VisualGalleryModalProps> = ({
 
                 <div className="mt-4 text-[11px] text-slate-500 font-mono space-y-1">
                   <div>Fecha: {new Date(selectedImage.timestamp).toLocaleString()}</div>
-                  <div>Generador: Nexus Quen Vision Synthesizer</div>
+                  <div>Generador: Nexus Qwen Vision Synthesizer</div>
                 </div>
               </div>
 

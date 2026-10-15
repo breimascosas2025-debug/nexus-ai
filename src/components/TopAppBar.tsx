@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { FocusMode } from '../types';
 import { FocusSelector } from './FocusSelector';
 
@@ -70,7 +70,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
             >
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#4cd7f6] animate-pulse" />
               <span className="text-xs font-semibold text-cyan-300 tracking-wide">
-                Nexus Quen
+                Nexus Qwen
               </span>
               <span className="material-symbols-outlined text-slate-400 text-sm group-hover:text-cyan-300 transition-colors">
                 expand_more
@@ -85,7 +85,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
                   <span className="font-semibold text-slate-200">Identidad Oficial NEXUS IA</span>
                 </div>
                 <p className="text-slate-300 leading-relaxed mb-2">
-                  <strong>Nexus Quen</strong> es el núcleo cuántico de inteligencia artificial de <strong>NEXUS AI</strong>, creada por <strong>Breitan Céspedes Monge</strong>.
+                  <strong>Nexus Qwen</strong> es el núcleo cuántico de inteligencia artificial de <strong>NEXUS AI</strong>, creada por <strong>Breitan Céspedes Monge</strong>.
                 </p>
                 <p className="text-slate-400 text-[11px] leading-tight">
                   Soporta Búsqueda Web en Vivo, Modos de Pensamiento, Síntesis Visual de Alta Calidad y Exportación Profesional.

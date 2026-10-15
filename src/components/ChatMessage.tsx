@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Message, FocusMode } from '../types';
 
 interface ChatMessageProps {
@@ -66,7 +66,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Respuesta de Nexus Quen',
+          title: 'Respuesta de Nexus Qwen',
           text: message.content,
         });
       } catch {
@@ -278,7 +278,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     );
   }
 
-  // ================= ASSISTANT (Nexus Quen) =================
+  // ================= ASSISTANT (Nexus Qwen) =================
   const activeFocus = message.focusMode ? FOCUS_MODE_LABELS[message.focusMode] : null;
 
   return (
@@ -292,7 +292,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </span>
           </div>
           <span className="text-xs md:text-sm font-semibold text-cyan-300 tracking-wide">
-            Nexus Quen
+            Nexus Qwen
           </span>
           <span className="px-2 py-0.5 rounded-full bg-slate-900 text-purple-300 text-[10px] font-mono border border-purple-500/30">
             NEXUS IA
@@ -401,7 +401,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   {showEnhancedPrompt ? 'expand_less' : 'auto_awesome'}
                 </span>
                 <span>
-                  {showEnhancedPrompt ? 'Ocultar prompt optimizado' : 'Ver prompt optimizado por Nexus Quen'}
+                  {showEnhancedPrompt ? 'Ocultar prompt optimizado' : 'Ver prompt optimizado por Nexus Qwen'}
                 </span>
                 {message.generatedImage.aspectRatio && (
                   <span className="ml-1 px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500/30 text-[10px] text-cyan-300">

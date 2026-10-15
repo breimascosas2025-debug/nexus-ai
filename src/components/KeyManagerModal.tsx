@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ProvidersResponse, ProviderStatus } from '../types';
 
 interface KeyManagerModalProps {
@@ -260,7 +260,7 @@ export const KeyManagerModal: React.FC<KeyManagerModalProps> = ({ isOpen, onClos
                 Gestor de Seguridad & APIs — NEXUS IA
               </h3>
               <p className="text-xs text-slate-400">
-                Modelo Nexus Quen • 5 Google AI Studio • 10 NVIDIA NIM • 1 Mistral • 1 Groq
+                Modelo Nexus Qwen • 5 Google AI Studio • 10 NVIDIA NIM • 1 Mistral • 1 Groq
               </p>
             </div>
           </div>
@@ -455,7 +455,7 @@ export const KeyManagerModal: React.FC<KeyManagerModalProps> = ({ isOpen, onClos
         {/* Footer */}
         <div className="p-4 border-t border-cyan-500/20 bg-[#171c25]/50 flex items-center justify-between">
           <p className="text-[11px] text-slate-400">
-            Plataforma: <strong className="text-cyan-300">NEXUS IA</strong> • Modelo: <strong className="text-cyan-300">Nexus Quen</strong>
+            Plataforma: <strong className="text-cyan-300">NEXUS IA</strong> • Modelo: <strong className="text-cyan-300">Nexus Qwen</strong>
           </p>
           <div className="flex gap-2">
             <button

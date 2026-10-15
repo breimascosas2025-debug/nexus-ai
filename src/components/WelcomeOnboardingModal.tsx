@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { setUserName } from '../services/storage';
 
 interface WelcomeOnboardingModalProps {
@@ -67,7 +67,7 @@ export const WelcomeOnboardingModal: React.FC<WelcomeOnboardingModalProps> = ({
         </h2>
 
         <p className="text-sm text-slate-300 leading-relaxed mb-6 font-sans">
-          Soy <strong className="text-cyan-300">Nexus Quen</strong>, tu asistente personal. Antes de
+          Soy <strong className="text-cyan-300">Nexus Qwen</strong>, tu asistente personal. Antes de
           comenzar, ¿cómo quieres que te llame?
         </p>
 

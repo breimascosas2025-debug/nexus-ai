@@ -1,4 +1,4 @@
-import React, { useState, useRef, ChangeEvent, KeyboardEvent } from 'react';
+﻿import React, { useState, useRef, ChangeEvent, KeyboardEvent } from 'react';
 import { Attachment } from '../types';
 
 interface OmnibarProps {
@@ -119,7 +119,7 @@ export const Omnibar: React.FC<OmnibarProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
               <span className="text-xs font-medium text-cyan-300">
-                {statusText || 'Nexus Quen está procesando...'}
+                {statusText || 'Nexus Qwen está procesando...'}
               </span>
             </div>
             <button
@@ -192,7 +192,7 @@ export const Omnibar: React.FC<OmnibarProps> = ({
               <span className="flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-sm text-purple-300">image</span>
                 <span className="font-semibold text-purple-300">Modo Imagen Activado:</span>
-                <span>Nexus Quen creará la imagen que describas</span>
+                <span>Nexus Qwen creará la imagen que describas</span>
               </span>
               <button
                 onClick={() => setIsImageMode(false)}
@@ -238,7 +238,7 @@ export const Omnibar: React.FC<OmnibarProps> = ({
               title={
                 isImageMode
                   ? 'Modo Imagen Activado (haz clic para desactivar)'
-                  : 'Activar Modo Imagen (Nexus Quen creará lo que escribas)'
+                  : 'Activar Modo Imagen (Nexus Qwen creará lo que escribas)'
               }
             >
               <span className="material-symbols-outlined text-lg md:text-xl" data-icon="image">
@@ -281,8 +281,8 @@ export const Omnibar: React.FC<OmnibarProps> = ({
                   isImageMode
                     ? 'Describe la imagen que deseas crear...'
                     : isWebSearchActive
-                      ? 'Pregunta a Nexus Quen con búsqueda web en vivo...'
-                      : 'Pregunta a Nexus Quen o pide crear una imagen...'
+                      ? 'Pregunta a Nexus Qwen con búsqueda web en vivo...'
+                      : 'Pregunta a Nexus Qwen o pide crear una imagen...'
                 }
                 className="w-full bg-transparent border-0 text-slate-100 placeholder:text-slate-500 focus:ring-0 text-sm md:text-base py-2 px-1 focus:outline-none resize-none leading-relaxed"
               />

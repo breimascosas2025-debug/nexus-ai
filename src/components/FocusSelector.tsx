@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { FocusMode } from '../types';
 
 interface FocusSelectorProps {
@@ -62,7 +62,7 @@ export const FocusSelector: React.FC<FocusSelectorProps> = ({ currentMode, onSel
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#131822]/90 border ${active.borderColor} shadow-sm hover:bg-[#1a2130] transition-all cursor-pointer group`}
-        title="Cambiar Modo de Pensamiento de Nexus Quen"
+        title="Cambiar Modo de Pensamiento de Nexus Qwen"
       >
         <span className={`material-symbols-outlined text-sm md:text-base ${active.color}`}>
           {active.icon}
@@ -86,7 +86,7 @@ export const FocusSelector: React.FC<FocusSelectorProps> = ({ currentMode, onSel
               <span className="text-[11px] font-mono uppercase tracking-wider text-cyan-400 font-semibold">
                 Modo de Pensamiento
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">Nexus Quen Core</span>
+              <span className="text-[10px] text-slate-400 font-mono">Nexus Qwen Core</span>
             </div>
 
             <div className="p-1 space-y-1 mt-1">

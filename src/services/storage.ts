@@ -1,4 +1,4 @@
-import { ChatThread, Message, FocusMode, GalleryImage } from '../types';
+﻿import { ChatThread, Message, FocusMode, GalleryImage } from '../types';
 
 const THREADS_KEY = 'nexus_ai_threads_v1';
 const ACTIVE_THREAD_ID_KEY = 'nexus_ai_active_thread_v1';
@@ -141,7 +141,7 @@ export function createNewThread(isTemporal = false, userName?: string): ChatThre
     content: getInitialGreeting(userName),
     timestamp: Date.now(),
     status: 'complete',
-    providerName: 'Nexus Quen',
+    providerName: 'Nexus Qwen',
   };
 
   return {
@@ -171,7 +171,7 @@ export function loadStoredThreads(userName?: string): ChatThread[] {
             if (
               index === 0 &&
               msg.role === 'assistant' &&
-              (content.includes('Soy Nexus Quen') ||
+              (content.includes('Soy Nexus Qwen') ||
                 content.includes('Breitan Céspedes Monge') ||
                 content.includes('Bienvenido a Nexus AI'))
             ) {
@@ -181,7 +181,7 @@ export function loadStoredThreads(userName?: string): ChatThread[] {
               ...msg,
               content,
               providerName:
-                msg.providerName === 'Nexus Qwen' ? 'Nexus Quen' : msg.providerName || 'Nexus Quen',
+                msg.providerName === 'Nexus Qwen' ? 'Nexus Qwen' : msg.providerName || 'Nexus Qwen',
             };
           });
 

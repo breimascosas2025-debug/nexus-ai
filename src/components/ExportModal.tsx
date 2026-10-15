@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ChatThread } from '../types';
 
 interface ExportModalProps {
@@ -28,17 +28,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 title: "${thread.title.replace(/"/g, '\\"')}"
 date: "${formattedDate}"
 platform: "Nexus AI"
-core_assistant: "Nexus Quen"
+core_assistant: "Nexus Qwen"
 creator: "Breitan Céspedes Monge"
 focus_mode: "${thread.focusMode || 'fast'}"
 total_messages: ${thread.messages.length}
 ---
 
 # ${thread.title}
-*Conversación oficial generada en Nexus AI con el núcleo cuántico Nexus Quen.*  
+*Conversación oficial generada en Nexus AI con el núcleo cuántico Nexus Qwen.*  
 **Fecha:** ${formattedDate}  
 **Participante:** ${userDisplayName}  
-**Asistente:** Nexus Quen (Creado por Breitan Céspedes Monge)  
+**Asistente:** Nexus Qwen (Creado por Breitan Céspedes Monge)  
 
 ---
 
@@ -59,7 +59,7 @@ total_messages: ${thread.messages.length}
           md += `\n`;
         }
       } else {
-        md += `### 🤖 Nexus Quen (${timeStr})\n\n`;
+        md += `### 🤖 Nexus Qwen (${timeStr})\n\n`;
         md += `${msg.content}\n\n`;
 
         if (msg.sources && msg.sources.length > 0) {
@@ -71,7 +71,7 @@ total_messages: ${thread.messages.length}
         }
 
         if (msg.generatedImage) {
-          md += `#### 🎨 Imagen Generada por Nexus Quen:\n`;
+          md += `#### 🎨 Imagen Generada por Nexus Qwen:\n`;
           md += `*Prompt:* "${msg.generatedImage.prompt}"\n\n`;
           if (msg.generatedImage.enhancedPrompt) {
             md += `*Prompt Optimizado:* "${msg.generatedImage.enhancedPrompt}"\n\n`;
@@ -83,7 +83,7 @@ total_messages: ${thread.messages.length}
       md += `---\n\n`;
     }
 
-    md += `\n*Documento exportado desde Nexus AI. Nexus Quen ha sido creado y diseñado por Breitan Céspedes Monge.*`;
+    md += `\n*Documento exportado desde Nexus AI. Nexus Qwen ha sido creado y diseñado por Breitan Céspedes Monge.*`;
 
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -147,7 +147,7 @@ total_messages: ${thread.messages.length}
             </span>
           </div>
           <div className="text-[11px] text-slate-400 font-mono">
-            Creado: {new Date(thread.createdAt).toLocaleDateString()} • Asistente: Nexus Quen
+            Creado: {new Date(thread.createdAt).toLocaleDateString()} • Asistente: Nexus Qwen
           </div>
         </div>
 
@@ -203,7 +203,7 @@ total_messages: ${thread.messages.length}
         {/* Footer info */}
         <div className="mt-5 pt-3 border-t border-slate-800 text-center">
           <p className="text-[10px] text-slate-500 font-mono">
-            Nexus AI • Creador de Nexus Quen: Breitan Céspedes Monge
+            Nexus AI • Creador de Nexus Qwen: Breitan Céspedes Monge
           </p>
         </div>
       </div>

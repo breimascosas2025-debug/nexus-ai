@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { ChatThread, Message, Attachment, FocusMode, GalleryImage } from './types';
 import {
   loadStoredThreads,
@@ -39,7 +39,7 @@ export default function App() {
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState<boolean>(false);
   const [fastestLatency, setFastestLatency] = useState<number | null>(null);
 
-  // Focus Mode (Modos de Pensamiento de Nexus Quen)
+  // Focus Mode (Modos de Pensamiento de Nexus Qwen)
   const [focusMode, setFocusModeState] = useState<FocusMode>(() => getStoredFocusMode());
 
   // Live Web Grounding Toggle
@@ -59,7 +59,7 @@ export default function App() {
   // Hologram and Generation states
   const [isProcessing, setIsProcessing] = useState(false);
   const [processStatus, setProcessStatus] = useState<'idle' | 'thinking' | 'generating' | 'error'>('idle');
-  const [statusText, setStatusText] = useState('Nexus Quen en reposo');
+  const [statusText, setStatusText] = useState('Nexus Qwen en reposo');
 
   // Image preview modal (lightbox within chat)
   const [previewImage, setPreviewImage] = useState<{ url: string; prompt: string } | null>(null);
@@ -254,7 +254,7 @@ export default function App() {
     setIsProcessing(false);
     setProcessStatus('idle');
     setStatusText('Generación cancelada por el usuario.');
-    setTimeout(() => setStatusText('Nexus Quen en reposo'), 2500);
+    setTimeout(() => setStatusText('Nexus Qwen en reposo'), 2500);
   };
 
   const handleDeleteGalleryImage = (id: string) => {
@@ -341,10 +341,10 @@ export default function App() {
     const initialAssistantMsg: Message = {
       id: assistantMsgId,
       role: 'assistant',
-      content: isImageRequest ? 'Preparando tu imagen… Sintetizando visualmente con Nexus Quen.' : '',
+      content: isImageRequest ? 'Preparando tu imagen… Sintetizando visualmente con Nexus Qwen.' : '',
       timestamp: Date.now(),
       status: 'streaming',
-      providerName: 'Nexus Quen',
+      providerName: 'Nexus Qwen',
       focusMode,
     };
 
@@ -384,8 +384,8 @@ export default function App() {
       isImageRequest
         ? 'Preparando tu imagen…'
         : useWebSearch
-          ? 'Buscando en la web en vivo con Nexus Quen...'
-          : 'Nexus Quen está procesando...'
+          ? 'Buscando en la web en vivo con Nexus Qwen...'
+          : 'Nexus Qwen está procesando...'
     );
 
     // Setup AbortController
@@ -395,7 +395,7 @@ export default function App() {
     // PATH 1: Real Image Generation with Automatic Prompt Enhancement
     if (isImageRequest) {
       try {
-        setStatusText('Sintetizando imagen con Nexus Quen...');
+        setStatusText('Sintetizando imagen con Nexus Qwen...');
         const res = await fetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -426,7 +426,7 @@ export default function App() {
         saveGalleryImage(galleryItem);
         setGalleryImages((prev) => [galleryItem, ...prev]);
 
-        const finalContent = `He generado la imagen solicitada para ti con Nexus Quen:\n\n*«${content}»*`;
+        const finalContent = `He generado la imagen solicitada para ti con Nexus Qwen:\n\n*«${content}»*`;
 
         updateAssistantMessage(currentThread.id, assistantMsgId, {
           content: finalContent,
@@ -451,7 +451,7 @@ export default function App() {
       } finally {
         setIsProcessing(false);
         setProcessStatus('idle');
-        setStatusText('Nexus Quen en reposo');
+        setStatusText('Nexus Qwen en reposo');
         abortControllerRef.current = null;
       }
       return;
@@ -490,7 +490,7 @@ export default function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = '';
-      let detectedProvider = 'Nexus Quen';
+      let detectedProvider = 'Nexus Qwen';
       let foundSources: Array<{ title: string; url: string }> = [];
       let foundQueries: string[] = [];
 
@@ -561,7 +561,7 @@ export default function App() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      const message = err instanceof Error ? err.message : 'Error en la conexión con Nexus Quen.';
+      const message = err instanceof Error ? err.message : 'Error en la conexión con Nexus Qwen.';
       updateAssistantMessage(currentThread.id, assistantMsgId, {
         content: `Lo siento, ocurrió un error al procesar tu solicitud: ${message}`,
         status: 'error',
@@ -570,7 +570,7 @@ export default function App() {
     } finally {
       setIsProcessing(false);
       setProcessStatus('idle');
-      setStatusText('Nexus Quen en reposo');
+      setStatusText('Nexus Qwen en reposo');
       abortControllerRef.current = null;
     }
   };
@@ -819,7 +819,7 @@ export default function App() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">NEXUS AI — INFORME OFICIAL</h1>
               <p className="text-xs text-slate-600">
-                Núcleo Cuántico Nexus Quen • Creado por Breitan Céspedes Monge
+                Núcleo Cuántico Nexus Qwen • Creado por Breitan Céspedes Monge
               </p>
             </div>
             <div className="text-right text-xs text-slate-500 font-mono">
@@ -1007,7 +1007,7 @@ export default function App() {
                   ¿Quién te creó?
                 </h4>
                 <p className="text-[11px] text-slate-400 line-clamp-2 mt-1">
-                  Conoce el origen oficial de Nexus Quen.
+                  Conoce el origen oficial de Nexus Qwen.
                 </p>
               </button>
             </div>
