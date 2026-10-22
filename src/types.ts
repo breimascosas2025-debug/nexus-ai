@@ -7,7 +7,16 @@ export interface Attachment {
   isImage: boolean;
 }
 
-export type FocusMode = 'fast' | 'deep' | 'code' | 'creative';
+export type FocusMode = 'fast' | 'deep' | 'code' | 'creative' | 'student';
+
+export type StudentSubject =
+  | 'general'
+  | 'matematicas'
+  | 'ciencias'
+  | 'sociales'
+  | 'espanol'
+  | 'ingles'
+  | 'frances';
 
 export interface WebSource {
   title: string;
@@ -49,6 +58,9 @@ export interface Message {
     prompt: string;
     enhancedPrompt?: string;
     aspectRatio?: string;
+    exactText?: string;
+    textOverlay?: boolean;
+    textVerified?: boolean;
   };
   providerName?: string;
   error?: string;

@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { ChatThread, Message, Attachment, FocusMode, GalleryImage } from './types';
+import { ChatThread, Message, Attachment, FocusMode, GalleryImage, StudentSubject } from './types';
 import {
   loadStoredThreads,
   saveStoredThreads,
@@ -13,6 +13,8 @@ import {
   getInitialGreeting,
   getStoredFocusMode,
   setStoredFocusMode,
+  getStoredStudentSubject,
+  setStoredStudentSubject,
   getStoredGallery,
   saveGalleryImage,
   deleteGalleryImage,
@@ -41,6 +43,9 @@ export default function App() {
 
   // Focus Mode (Modos de Pensamiento de Nexus Qwen)
   const [focusMode, setFocusModeState] = useState<FocusMode>(() => getStoredFocusMode());
+
+  // Student Mode subject (visible when focusMode === 'student')
+  const [studentSubject, setStudentSubjectState] = useState<StudentSubject>(() => getStoredStudentSubject());
 
   // Live Web Grounding Toggle
   const [isWebSearchActive, setIsWebSearchActive] = useState<boolean>(false);
@@ -129,6 +134,11 @@ export default function App() {
   const handleSelectFocusMode = (mode: FocusMode) => {
     setFocusModeState(mode);
     setStoredFocusMode(mode);
+  };
+
+  const handleSelectStudentSubject = (subject: StudentSubject) => {
+    setStudentSubjectState(subject);
+    setStoredStudentSubject(subject);
   };
 
   const handleWelcomeComplete = (newName: string) => {
@@ -264,33 +274,30 @@ export default function App() {
 
   // Check if prompt intends to generate an image
   const isImageGenerationPrompt = (text: string): boolean => {
-    const lower = text.toLowerCase().trim();
+    const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    // Direct creation verbs at the start (word-bounded so "pintura" or "dibujito" don't trigger)
     if (
-      lower.startsWith('hazme una imagen') ||
-      lower.startsWith('haz una imagen') ||
-      lower.startsWith('crea una imagen') ||
-      lower.startsWith('crear imagen') ||
-      lower.startsWith('crear una imagen') ||
-      lower.startsWith('genera una imagen') ||
-      lower.startsWith('generar imagen') ||
-      lower.startsWith('generar una imagen') ||
-      lower.startsWith('diseña una imagen') ||
-      lower.startsWith('diseñar una imagen') ||
-      lower.startsWith('diseña imagen') ||
-      lower.startsWith('dibuja') ||
-      lower.startsWith('dibújame') ||
-      lower.startsWith('dibujar') ||
-      lower.startsWith('píntame') ||
-      lower.startsWith('pinta') ||
-      lower.startsWith('crea un fondo') ||
-      lower.startsWith('crea una ilustración') ||
-      lower.startsWith('genera una ilustración')
+      /^(hazme|haz|crea|crear|genera|generar|generame|dise[nñ]a|dise[nñ]ar|dibuja|dibujar|dibujame|pinta|pintar|pintame|renderiza|sintetiza|imagen\s+de|una\s+imagen)\b/.test(
+        lower
+      )
     ) {
       return true;
     }
 
-    const actionPattern = /\b(hazme|haz|crea|crear|genera|generar|diseña|diseñar|dibuja|dibújame|pinta|píntame|quiero|dame|renderiza|sintetiza)\b.*\b(imagen|foto|fotografía|ilustración|dibujo|wallpaper|fondo|gráfico|póster)\b/i;
-    return actionPattern.test(lower);
+    // Creation verb + image noun anywhere in the sentence
+    const actionPattern =
+      /\b(hazme|haz|crea|crear|genera|generar|generame|dise[nñ]a|dise[nñ]ar|dibuja|dibujame|pinta|pintame|quiero|dame|necesito|renderiza|sintetiza|hazle|hacer)\b[^.?!]{0,60}\b(imagen|foto|fotografia|ilustracion|dibujo|wallpaper|fondo|grafico|poster|p[oó]ster|banner|logo|portada|miniatura|thumbnail|afiche)\b/i;
+    if (actionPattern.test(lower)) {
+      return true;
+    }
+
+    // Explicit text-rendering request: "que diga ..." almost always means an image/poster
+    if (/\bque\s+diga\b|\bque\s+ponga\b|\bcon\s+el\s+texto\b/.test(lower)) {
+      return true;
+    }
+
+    return false;
   };
 
   // Send message and execute AI inference
@@ -396,10 +403,15 @@ export default function App() {
     if (isImageRequest) {
       try {
         setStatusText('Sintetizando imagen con Nexus Qwen...');
+        // Image attachments act as visual references for style/subject
+        const referenceImages = attachments
+          .filter((a) => a.isImage && a.data)
+          .map((a) => ({ type: a.type, data: a.data }));
+
         const res = await fetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: content }),
+          body: JSON.stringify({ prompt: content, referenceImages }),
           signal: controller.signal,
         });
 
@@ -426,7 +438,16 @@ export default function App() {
         saveGalleryImage(galleryItem);
         setGalleryImages((prev) => [galleryItem, ...prev]);
 
-        const finalContent = `He generado la imagen solicitada para ti con Nexus Qwen:\n\n*«${content}»*`;
+        // Inform the user; when exact text was requested, report the verification result honestly
+        let finalContent = `He generado la imagen solicitada para ti con Nexus Qwen:\n\n*«${content}»*`;
+        if (data.exactText && data.textOverlay) {
+          finalContent +=
+            data.textVerified === true
+              ? '\n\n✅ Texto verificado visualmente: el texto renderizado coincide exactamente con lo solicitado.'
+              : data.textVerified === false
+                ? '\n\n⚠️ No pude verificar automáticamente el texto renderizado; revísalo y puedes regenerarla si es necesario.'
+                : '';
+        }
 
         updateAssistantMessage(currentThread.id, assistantMsgId, {
           content: finalContent,
@@ -436,6 +457,9 @@ export default function App() {
             prompt: content,
             enhancedPrompt: data.enhancedPrompt,
             aspectRatio: data.aspectRatio,
+            exactText: data.exactText,
+            textOverlay: data.textOverlay,
+            textVerified: data.textVerified,
           },
         });
       } catch (err: unknown) {
@@ -479,6 +503,7 @@ export default function App() {
           userName,
           focusMode,
           webSearch: useWebSearch,
+          studentSubject,
         }),
         signal: controller.signal,
       });
@@ -1039,6 +1064,9 @@ export default function App() {
         statusText={statusText}
         isWebSearchActive={isWebSearchActive}
         onToggleWebSearch={() => setIsWebSearchActive(!isWebSearchActive)}
+        focusMode={focusMode}
+        studentSubject={studentSubject}
+        onStudentSubjectChange={handleSelectStudentSubject}
       />
 
       {/* Image Lightbox Modal */}

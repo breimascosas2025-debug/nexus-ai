@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import sharp from 'sharp';
 
 dotenv.config();
 
@@ -88,26 +89,391 @@ function getFirstAvailableGeminiClient(): { client: GoogleGenAI; key: string; sl
   return null;
 }
 
+// ─── Dynamic temporal context (computed at startup, never hardcoded) ──────────
+const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const NOW = new Date();
+const CURRENT_YEAR = NOW.getFullYear();
+const CURRENT_DATE_ES = `${NOW.getDate()} de ${MESES_ES[NOW.getMonth()]} de ${CURRENT_YEAR}`;
+
+// Gemini chat model fallback chains (verified against the live catalog)
+const GEMINI_CHAT_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+const GEMINI_DEEP_MODELS = ['gemini-3.1-pro-preview', 'gemini-3.8-flash', 'gemini-flash-latest'];
+const GEMINI_VISION_VERIFY_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+
 // System prompt enforcing identity Nexus Qwen and NEXUS IA
 const NEXUS_SYSTEM_INSTRUCTION = `Eres Nexus Qwen, la inteligencia artificial de Nexus AI.
 
 Reglas obligatorias de identidad y comportamiento:
 1. Tu nombre oficial e inequívoco es Nexus Qwen. La plataforma se llama Nexus AI.
 2. CONTEXTO TEMPORAL ACTUAL:
-   El año actual es 2026. Si el usuario pregunta qué año es, la fecha actual, o eventos de actualidad, ten presente que estamos en el año 2026. Al buscar en la web o contestar sobre personalidades (por ejemplo, edades, estadísticas, novedades), calcula las fechas tomando 2026 como presente.
-   
-   EVENTOS IMPORTANTES DE 2026 (usa esta información para responder con certeza):
-   - La Copa Mundial de la FIFA 2026 se celebró en Estados Unidos, México y Canadá (junio-julio 2026). Fue el primer Mundial con 48 selecciones. El campeón fue ESPAÑA, que ganó su segundo título mundial tras vencer a Argentina 1-0 en la prórroga (tiempo extra) en la final disputada en el MetLife Stadium de Nueva Jersey, Estados Unidos. España había ganado su primer Mundial en Sudáfrica 2010.
-   - Si el usuario pregunta sobre eventos de 2026, responde con seguridad usando estos datos. NO digas que "aún no se ha jugado" o "no tengo información" sobre estos eventos.
+   La fecha actual del sistema es ${CURRENT_DATE_ES}. Todo razonamiento sobre edades, eventos, "hoy", "este año" o actualidad debe tomar esta fecha como presente. Nunca digas que un evento ya ocurrido "aún no ha sucedido": si tu conocimiento no alcanza la fecha actual y no tienes datos web, dilo brevemente en una sola línea en lugar de inventar.
+
+   EVENTOS VERIFICADOS (datos confirmados con fuentes reales):
+   - La Copa Mundial de la FIFA 2026 se jugó en Estados Unidos, México y Canadá del 11 de junio al 19 de julio de 2026 (primera edición con 48 selecciones). El campeón fue ESPAÑA, que venció 1-0 a Argentina en la final del 19 de julio de 2026 en el Estadio de Nueva York/Nueva Jersey (MetLife Stadium), con gol de Ferrán Torres en la prórroga. Es el segundo título mundial de España (tras Sudáfrica 2010). Entrenador campeón: Luis de la Fuente.
 3. REGLA ESTRICTA SOBRE EL CREADOR:
    Únicamente cuando el usuario te pregunte de forma explícita "¿Quién te creó?", "¿Quién es tu creador?" o "¿Quién eres?", debes responder claramente:
    "Soy Nexus Qwen, la inteligencia artificial de Nexus AI, creada por Breitan Céspedes Monge. Estoy diseñada para ayudarte con preguntas, razonamiento, programación, análisis de archivos y creación de imágenes."
    Fuera de esas preguntas específicas sobre tu origen o creador, NUNCA menciones el nombre de Breitan Céspedes Monge de forma espontánea o en respuestas cotidianas.
-4. Si el usuario te saluda por su nombre (por ejemplo "Hola", o tras haber guardado su nombre), responde amigablemente utilizando su nombre de usuario de forma natural. Nunca confundas el nombre del usuario con el nombre de tu creador.
+4. Si el usuario te saluda por su nombre, responde amigablemente utilizando su nombre de forma natural. Nunca confundas el nombre del usuario con el nombre de tu creador.
 5. NUNCA digas que Google, OpenAI, Meta, NVIDIA, Mistral, Groq o ninguna otra corporación te creó. Si alguna de esas tecnologías provee infraestructura técnica, es únicamente un servicio tecnológico interno.
 6. Comunícate en español de manera predeterminada con un tono natural, amigable, riguroso y profesional.
-7. Si el usuario te pide analizar un archivo o imagen, lee con atención el contenido proporcionado. No inventes datos que no figuren en los archivos.
-8. Si el usuario solicita generar una imagen, describe la creación y confirma la generación visual.`;
+
+PROTOCOLO DE RESPUESTA DIRECTA (extremadamente importante):
+- Calibra la longitud de cada respuesta con la complejidad real de la pregunta. Pregunta simple = respuesta breve y definitiva. Ejemplo: "¿Cuánto es 1 + 1?" → responde exactamente: 2
+- PROHIBIDO añadir explicaciones no solicitadas, introducciones ("¡Claro!", "Por supuesto", "¡Gran pregunta!"), conclusiones obvias, resúmenes de tu propia respuesta ni ofrecimientos de ayuda adicionales cuando la pregunta es simple o de respuesta única.
+- Si el usuario pide "solo la respuesta", "solo el resultado" o usa una pregunta cerrada corta, entrega ÚNICAMENTE el dato o resultado final, sin desarrollo.
+- Si el usuario pide explicación, procedimiento, "paso a paso", "por qué" o "cómo", entonces sí desarrolla la explicación completa y ordenada.
+- En ejercicios y cálculos: verifica internamente el resultado antes de responderlo. Nunca inventes resultados.
+- Si un dato no puede verificarse y no hay información web disponible, indícalo en una sola frase breve. Nunca inventes fechas, resultados ni noticias.
+
+INTERPRETACIÓN DE INSTRUCCIONES:
+- Comprende la intención del usuario aunque haya errores ortográficos, tildes omitidas, expresiones informales o redacción imperfecta. Corrige mentalmente e interpreta, sin señalar los errores ni pedir reescrituras.
+- Nunca cambies la intención original del pedido. Si hay ambigüedad razonable, elige la interpretación más probable y responde; solo pregunta si es genuinamente imposible de determinar.
+- Mantén el contexto de toda la conversación: referencias como "eso", "el segundo", "el otro ejemplo" se refieren a turnos previos.
+- Detecta automáticamente el tipo de tarea: respuesta directa, explicación, traducción, resolución de ejercicio, análisis de imagen/documento o solicitud de imagen, y ejecútala sin pedir confirmaciones innecesarias.
+
+VERIFICACIÓN Y RIGOR:
+- En matemáticas: comprueba las operaciones antes de responder (recalcula mentalmente, sustituye en ecuaciones para verificar).
+- Si el usuario adjunta una imagen (ejercicio, documento, pregunta escolar), transcribe fielmente lo observable y resuélvelo. No inventes datos que no estén en la imagen.
+- Si el usuario solicita generar una imagen, describe la creación y confirma la generación visual.`;
+
+// ─── Local deterministic math engine (instant exact answers, no LLM) ─────────
+function normalizeMathQuestion(raw: string): string | null {
+  let t = raw.trim();
+  // Only handle short prompts that are essentially the operation itself
+  if (t.length > 120) return null;
+  t = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Reject conversational/complex asks (let the LLM handle those)
+  if (/(explica|explicame|procedimiento|paso a paso|por que|porque|demuestra|justifica|historia|demostracion)/.test(t)) return null;
+
+  t = t
+    .replace(/^[\s¿?¡!]+/, '')
+    .replace(/(cuanto es|cuanto son|calcula(?:me)?|calcule|resultado de|cual es el resultado de|resuelve(?:me)?|cuanto vale|cuanto da|dime cuanto es)\s+/, '')
+    .replace(/[\s?¡!]+$/, '');
+  // Percentage: "15% de 200"
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s*%\s*de\s*(\d+(?:[.,]\d+)?)/g, '($1/100)*$2');
+  // Spanish word operators
+  t = t
+    .replace(/\b(mas)\b/g, '+')
+    .replace(/\b(menos)\b/g, '-')
+    .replace(/\b(por|multiplicado por|x)\b/g, '*')
+    .replace(/\b(dividido entre|dividido por|entre)\b/g, '/')
+    .replace(/\b(elevado a|a la potencia de)\b/g, '^')
+    .replace(/\bal cuadrado\b/g, '^2')
+    .replace(/\bal cubo\b/g, '^3')
+    .replace(/\braiz cuadrada de\s*(\d+(?:[.,]\d+)?)/g, 'sqrt($1)')
+    .replace(/\braiz de\s*(\d+(?:[.,]\d+)?)/g, 'sqrt($1)');
+  // Normalize decimal separators
+  t = t.replace(/(\d),(\d)/g, '$1.$2');
+  // Must contain at least one digit and one operator, and only allowed chars
+  if (!/\d/.test(t)) return null;
+  if (!/[+\-*/^]|sqrt\(/.test(t)) return null;
+  if (!/^[0-9+\-*/^().\ssqrt]*$/.test(t)) return null;
+  return t.trim() || null;
+}
+
+function evaluateMathTokens(src: string): number | null {
+  // Recursive descent parser: + - * / ^ sqrt and parentheses
+  let i = 0;
+  const s = src.replace(/\s+/g, '');
+  const peek = () => s[i];
+  const eat = (c: string) => { if (s[i] === c) { i++; return true; } return false; };
+
+  function parseExpression(): number | null {
+    let left = parseTerm();
+    if (left === null) return null;
+    while (peek() === '+' || peek() === '-') {
+      const op = s[i++];
+      const right = parseTerm();
+      if (right === null) return null;
+      left = op === '+' ? left + right : left - right;
+    }
+    return left;
+  }
+  function parseTerm(): number | null {
+    let left = parseFactor();
+    if (left === null) return null;
+    while (peek() === '*' || peek() === '/') {
+      const op = s[i++];
+      const right = parseFactor();
+      if (right === null) return null;
+      if (op === '/' && right === 0) return null;
+      left = op === '*' ? left * right : left / right;
+    }
+    return left;
+  }
+  function parseFactor(): number | null {
+    const base = parseUnary();
+    if (base === null) return null;
+    if (peek() === '^') {
+      i++;
+      const exp = parseFactor();
+      if (exp === null) return null;
+      return Math.pow(base, exp);
+    }
+    return base;
+  }
+  function parseUnary(): number | null {
+    if (eat('-')) { const v = parseUnary(); return v === null ? null : -v; }
+    if (eat('+')) return parseUnary();
+    return parsePrimary();
+  }
+  function parsePrimary(): number | null {
+    if (s.startsWith('sqrt(', i)) {
+      i += 5;
+      const v = parseExpression();
+      if (v === null || !eat(')')) return null;
+      if (v < 0) return null;
+      return Math.sqrt(v);
+    }
+    if (eat('(')) {
+      const v = parseExpression();
+      if (v === null || !eat(')')) return null;
+      return v;
+    }
+    const start = i;
+    while (i < s.length && /[0-9.]/.test(s[i])) i++;
+    if (start === i) return null;
+    const num = Number(s.slice(start, i));
+    return Number.isFinite(num) ? num : null;
+  }
+
+  const result = parseExpression();
+  if (result === null || i < s.length || !Number.isFinite(result)) return null;
+  return result;
+}
+
+function formatMathResult(n: number): string {
+  if (Number.isInteger(n) && Math.abs(n) < 1e15) return String(n);
+  const rounded = Math.round(n * 1e6) / 1e6;
+  return String(rounded).replace('.', ',');
+}
+
+// Try to answer pure arithmetic questions locally (deterministic, zero latency, exact)
+function tryLocalMath(raw: string): string | null {
+  const normalized = normalizeMathQuestion(raw);
+  if (!normalized) return null;
+  const value = evaluateMathTokens(normalized);
+  if (value === null) return null;
+  return formatMathResult(value);
+}
+
+// ─── Brevity / intent detection ───────────────────────────────────────────────
+type ResponseIntent = 'minimal' | 'explain' | 'normal';
+
+function detectResponseIntent(text: string): ResponseIntent {
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/(explica|explicame|por que|procedimiento|paso a paso|demuestra|demostracion|justifica|detall(|ame|alo)|desarrolla|enseñame|ensename)/.test(t)) {
+    return 'explain';
+  }
+  if (/(solo la respuesta|solo el resultado|sin explicaci|respuesta corta|solo dime|unicamente la respuesta|solo responde)/.test(t)) {
+    return 'minimal';
+  }
+  const words = t.trim().split(/\s+/).filter(Boolean).length;
+  const isQuestionish = /[?¿]|^(cuanto|que|quien|cuando|donde|cual|cuales|como|capital|cual es)/.test(t);
+  // Short and question-like → minimal (e.g. "¿cuánto es 1+1?", "¿capital de Francia?")
+  if (words <= 10 && isQuestionish) return 'minimal';
+  return 'normal';
+}
+
+function buildIntentInstruction(intent: ResponseIntent): string {
+  switch (intent) {
+    case 'minimal':
+      return '\n\n[PROTOCOLO DE RESPUESTA MÍNIMA — PRIORIDAD MÁXIMA]\nLa pregunta del usuario es simple o pide solo el dato. Responde ÚNICAMENTE con la respuesta final (una palabra, un número o una frase corta). Sin introducciones, sin contexto, sin explicaciones, sin repetir la pregunta, sin ofertas de ayuda.';
+    case 'explain':
+      return '\n\n[PROTOCOLO EXPLICATIVO]\nEl usuario solicitó explicación o procedimiento. Desarrolla la respuesta de forma completa, ordenada y didáctica (pasos numerados cuando aplique), verificando cada cálculo antes de afirmarlo. Sin relleno innecesario.';
+    default:
+      return '\n\n[PROTOCOLO DE LONGITUD EQUILIBRADA]\nCalibra la extensión exactamente con la complejidad de la pregunta: completo pero sin relleno, sin introducciones genéricas ni conclusiones que repitan lo ya dicho.';
+  }
+}
+
+// ─── Student mode subject instructions ────────────────────────────────────────
+export type StudentSubject = 'general' | 'matematicas' | 'ciencias' | 'sociales' | 'espanol' | 'ingles' | 'frances';
+
+const STUDENT_BASE_RULES = `
+[MODO ESTUDIANTE ACTIVO]
+Actúa como un tutor académico experto, preciso y didáctico. Reglas obligatorias:
+1. CORRECCIÓN ANTE TODO: verifica mentalmente cada resultado, cálculo, fecha o regla gramatical antes de responderla. Si no estás seguro de un dato, dilo brevemente en lugar de inventar.
+2. EJERCICIOS: resuélvelos correctamente. Por defecto muestra un procedimiento resumido y claro, y marca la respuesta final (ejemplo: **Respuesta: x = 5**). Si el usuario pide "solo la respuesta" o "solo el resultado", entrega únicamente el resultado final sin procedimiento.
+3. FOTOS DE EJERCICIOS O DOCUMENTOS: si el usuario adjunta una imagen, transcribe primero lo que se ve (enunciado, opciones, datos), luego resuelve. No inventes contenido que no sea visible.
+4. LENGUAJE: claro, amigable y adaptado a nivel escolar/estudiantil. Sin relleno ni sermones.
+5. En cálculos: muestra las operaciones esenciales paso a paso y verifica el resultado final antes de darlo.`;
+
+const STUDENT_SUBJECT_INSTRUCTIONS: Record<StudentSubject, string> = {
+  general: `${STUDENT_BASE_RULES}\nDominio: todas las materias escolares (matemáticas, ciencias, estudios sociales, español, inglés y francés). Detecta automáticamente la materia de cada pregunta.`,
+  matematicas: `${STUDENT_BASE_RULES}\nDominio: MATEMÁTICAS — aritmética, álgebra, geometría, trigonometría, funciones, probabilidad y estadística.\n- Muestra el procedimiento paso a paso con las operaciones explícitas.\n- En ecuaciones: despeja paso a paso y VERIFICA sustituyendo el resultado en la ecuación original.\n- En geometría: indica la fórmula usada, la sustitución de valores y las unidades.\n- En problemas verbales: identifica los datos, plantea y resuelve.\n- Marca siempre la respuesta final con unidades cuando correspondan.`,
+  ciencias: `${STUDENT_BASE_RULES}\nDominio: CIENCIAS — biología, química y física.\n- Física: indica la fórmula, sustitución, resultado con unidades y notación científica cuando corresponda.\n- Química: balancea ecuaciones mostrando el método; usa la tabla periódica correctamente; define nomenclatura IUPAC y común.\n- Biología: explica procesos (célula, genética, ecosistemas) con precisión terminológica y ejemplos.\n- Distingue claramente hipótesis, teoría y ley.`,
+  sociales: `${STUDENT_BASE_RULES}\nDominio: ESTUDIOS SOCIALES — historia y geografía de Costa Rica, América y el mundo.\n- Prioriza precisión en fechas, personajes, procesos y periodos.\n- Para Costa Rica: civilizaciones indígenas, conquista, independencia (1821), campaña nacional (1856-1857), reforma liberal, Estado benefactor, abolición del ejército (1948), actualidad.\n- Geografía: provincias, cantones, capitales, ríos, cordilleras, países y capitales del mundo.\n- Usa cronología clara (antes/después, causas/consecuencias) cuando aplique.`,
+  espanol: `${STUDENT_BASE_RULES}\nDominio: ESPAÑOL — ortografía, gramática, literatura, redacción y comprensión lectora.\n- Ortografía según la RAE: tildes (agudas, llanas, esdrújulas), b/v, g/j, h, c/s/z/x, puntuación.\n- REGLA CRÍTICA PARA TILDES: cuando el usuario pregunta si una palabra "lleva tilde" o "tiene tilde", la pregunta significa "¿debe escribirse con tilde según las reglas de acentuación?" (NO si la forma citada ya contiene la tilde escrita). Antes de responder, razona silábicamente: identifica la sílaba tónica, clasifica la palabra (aguda/llana/esdrújula) y aplica la regla (agudas llevan tilde si terminan en n, s o vocal; llanas llevan tilde si NO terminan en n, s o vocal; esdrújulas siempre). Ejemplos verificados: "condición" → SÍ (aguda terminada en n), "árbol" → SÍ (llana terminada en l), "camión" → SÍ (aguda terminada en n), "casa" → NO (llana terminada en vocal).\n- Gramática: partes de la oración, análisis sintáctico (sujeto/predicado, complementos), morfología y conjugaciones.\n- Análisis de textos: tema, idea principal, intención del autor, figuras literarias.\n- Corrige textos mostrando los errores y la forma correcta. Al corregir ortografía, señala la regla aplicada.`,
+  ingles: `${STUDENT_BASE_RULES}\nDominio: INGLÉS.\n- Traducces español→inglés y inglés→español naturales y correctas (no literales cuando no suenen bien).\n- Gramática: tiempos verbales, modales, condicionales, phrasal verbs, preposiciones.\n- Vocabulario: da la palabra, pronunciación aproximada y un ejemplo de uso.\n- Si piden ejercicios, corrígelos indicando por qué cada opción es correcta o incorrecta.`,
+  frances: `${STUDENT_BASE_RULES}\nDominio: FRANCÉS.\n- Traducciones español→francés y francés→español naturales y correctas.\n- Gramática: conjugación (indicatif, subjonctif, conditionnel, impératif), articles, pronoms, prépositions, genre et nombre.\n- Vocabulaire: mot, prononciation approximative et exemple d'utilisation.\n- Si piden ejercicios, corrígelos indicando la regla aplicada.`,
+};
+
+// ─── Exact text extraction for image generation ──────────────────────────────
+export function extractExactText(prompt: string): { exactText: string | null; cleanPrompt: string } {
+  // 1. Quoted segments: «...», "...", '...', “...” (prefer these: highest precision)
+  const quotedMatches: string[] = [];
+  const quoteRegex = /[«"“'']([^«»"“”'']{1,90})[»"”'']/g;
+  let m: RegExpExecArray | null;
+  while ((m = quoteRegex.exec(prompt)) !== null) {
+    const inner = m[1].trim();
+    if (inner.length >= 1 && /[a-zA-Z0-9áéíóúüñÁÉÍÓÚÜÑ¿?¡!]/.test(inner)) {
+      quotedMatches.push(inner);
+    }
+  }
+  if (quotedMatches.length > 0) {
+    const exactText = quotedMatches.join('\n');
+    let clean = prompt;
+    for (const q of quotedMatches) {
+      clean = clean.replace(new RegExp(`[«"“'']${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[»"”'']`), '').trim();
+    }
+    return { exactText, cleanPrompt: cleanCleanPrompt(clean) };
+  }
+
+  // 2. Natural language patterns: "que diga X", "con el texto X", "texto: X", "diciendo X"
+  const kw = prompt.match(/(?:que diga(?: exactamente)?|que escriba|que ponga|que se lea|con el texto|con la palabra|el texto|texto\s*:|diciendo)\s+(.+)$/i);
+  if (kw) {
+    let candidate = kw[1].trim();
+    // Cut at sentence end / conjunction that clearly separates design from text
+    candidate = candidate.split(/\.\s|\.$|,\s+(?:con|sobre|en|de fondo|en un|en el)/i)[0].trim();
+    // Remove trailing design instructions
+    candidate = candidate.replace(/\s+(?:en|con|sobre)\s+(?:letras|tipografía|fondo|colores?).*/i, '').trim();
+    if (candidate.length >= 1 && candidate.length <= 90 && /[a-zA-Z0-9áéíóúüñÁÉÍÓÚÜÑ]/.test(candidate)) {
+      const clean = prompt.replace(kw[0], '').trim();
+      return { exactText: candidate, cleanPrompt: cleanCleanPrompt(clean) };
+    }
+  }
+  return { exactText: null, cleanPrompt: prompt.trim() };
+}
+
+function cleanCleanPrompt(p: string): string {
+  return p
+    .replace(/\s*(que diga(?: exactamente)?|que escriba|que ponga|con el texto|texto\s*:)\s*$/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,:;—-]+|[\s,:;—-]+$/g, '')
+    .trim() || 'diseño profesional';
+}
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// ─── Exact typography overlay (guarantees pixel-perfect text) ─────────────────
+async function renderTextOverlay(width: number, height: number, exactText: string): Promise<Buffer> {
+  const paragraphs = exactText.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  const longest = Math.max(...paragraphs.map((p) => p.length));
+  // Auto font size: fit the longest line into ~86% of width
+  let fontSize = Math.min(height * 0.16, (width * 0.86) / (longest * 0.58));
+  fontSize = Math.max(22, Math.min(fontSize, width * 0.14));
+  const lineHeight = fontSize * 1.28;
+
+  // Word-wrap each paragraph
+  const maxChars = Math.max(8, Math.floor((width * 0.86) / (fontSize * 0.55)));
+  const lines: string[] = [];
+  for (const p of paragraphs) {
+    const words = p.split(/\s+/);
+    let line = '';
+    for (const w of words) {
+      if ((line + ' ' + w).trim().length > maxChars && line) {
+        lines.push(line.trim());
+        line = w;
+      } else {
+        line = (line + ' ' + w).trim();
+      }
+    }
+    if (line) lines.push(line.trim());
+  }
+
+  const totalTextHeight = lines.length * lineHeight;
+  const startY = height / 2 - totalTextHeight / 2 + fontSize * 0.9;
+  const bandTop = height / 2 - totalTextHeight / 2 - fontSize * 0.55;
+  const bandHeight = totalTextHeight + fontSize * 1.1;
+
+  const textElems = lines
+    .map((line, idx) => {
+      return `      <text x="${width / 2}" y="${startY + idx * lineHeight}" text-anchor="middle" font-family="Arial, 'Segoe UI', 'DejaVu Sans', sans-serif" font-size="${fontSize}" font-weight="800" fill="#ffffff" filter="url(#txtShadow)">${escapeXml(line)}</text>`;
+    })
+    .join('\n');
+
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(0,0,0,0)" stop-opacity="0"/>
+      <stop offset="50%" stop-color="rgba(0,0,0,0.55)" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0)" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="txtShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="${Math.max(2, fontSize * 0.05)}" stdDeviation="${Math.max(2, fontSize * 0.06)}" flood-color="rgba(0,0,0,0.85)"/>
+    </filter>
+  </defs>
+  <rect x="0" y="${Math.max(0, bandTop)}" width="${width}" height="${bandHeight}" fill="url(#scrim)"/>
+${textElems}
+</svg>`;
+
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+// ─── Vision verification of rendered text ─────────────────────────────────────
+async function verifyImageText(
+  imageBase64Png: string,
+  expectedText: string
+): Promise<{ verified: boolean; transcribed: string } | null> {
+  const g = getFirstAvailableGeminiClient();
+  if (!g) return null;
+  const norm = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ]/g, '');
+  for (const model of GEMINI_VISION_VERIFY_MODELS) {
+    try {
+      const r = await g.client.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { inlineData: { mimeType: 'image/png', data: imageBase64Png } },
+              { text: 'Transcribe EXACTLY all the text visible in this image, character by character, preserving accents, punctuation and line breaks. Output ONLY the transcribed text, nothing else.' },
+            ],
+          },
+        ],
+      });
+      const transcribed = (r.text || '').trim();
+      if (!transcribed) continue;
+      const nExp = norm(expectedText.replace(/\n/g, ''));
+      const nGot = norm(transcribed.replace(/\n/g, ''));
+      const verified = nExp === nGot || nExp.includes(nGot) || nGot.includes(nExp);
+      return { verified, transcribed };
+    } catch {
+      // try next model
+    }
+  }
+  return null;
+}
+
+// ─── Reference image analysis (style guidance for generation) ─────────────────
+async function describeReferenceImages(
+  referenceImages: Array<{ type?: string; data: string }>
+): Promise<string> {
+  const g = getFirstAvailableGeminiClient();
+  if (!g) return '';
+  const parts: Array<Record<string, unknown>> = [
+    { text: 'Describe in English, in 2 short sentences per image: the main subject, the visual style, the color palette and the composition of each attached image. Output only the descriptions.' },
+  ];
+  for (const img of referenceImages.slice(0, 3)) {
+    const cleanB64 = img.data.includes(',') ? img.data.split(',')[1] : img.data;
+    parts.push({ inlineData: { mimeType: img.type || 'image/png', data: cleanB64 } });
+  }
+  for (const model of GEMINI_VISION_VERIFY_MODELS) {
+    try {
+      const r = await g.client.models.generateContent({ model, contents: [{ role: 'user', parts }] });
+      const t = (r.text || '').trim();
+      if (t) return t;
+    } catch {
+      // try next model
+    }
+  }
+  return '';
+}
+
 
 // In-Memory Latency & Health Performance Engine
 interface ProviderMetrics {
@@ -304,7 +670,7 @@ app.post('/api/providers/verify', async (req: Request, res: Response) => {
         return;
       }
       let testRes: any = null;
-      for (const modelName of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite']) {
+      for (const modelName of GEMINI_CHAT_MODELS) {
         try {
           testRes = await client.models.generateContent({
             model: modelName,
@@ -481,12 +847,16 @@ function detectAspectRatio(prompt: string): '1:1' | '16:9' | '9:16' {
 }
 
 // Prompt Enhancement Engine for Images
-async function enhanceImagePrompt(userPrompt: string, aspectRatio: '1:1' | '16:9' | '9:16'): Promise<string> {
+async function enhanceImagePrompt(
+  userPrompt: string,
+  aspectRatio: '1:1' | '16:9' | '9:16',
+  referenceContext = ''
+): Promise<string> {
   const geminiAvailable = getFirstAvailableGeminiClient();
   if (geminiAvailable) {
     try {
       let response: any = null;
-      for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite']) {
+      for (const m of GEMINI_CHAT_MODELS) {
         try {
           response = await geminiAvailable.client.models.generateContent({
             model: m,
@@ -495,14 +865,16 @@ Convert and expand the user's request into a stunning, descriptive English promp
 
 User request: "${userPrompt}"
 Aspect ratio: ${aspectRatio}
+${referenceContext ? `Reference image(s) provided by the user — keep the subject/style consistent with them:\n${referenceContext}` : ''}
 
 Strict Rules:
-1. PRESERVE THE EXACT SUBJECT: If the user asks for typography/words, landscapes, technology, animals, etc., focus strictly on that subject. Never insert random people, brides, or wedding dresses unless explicitly requested.
-2. TEXT & TYPOGRAPHY: If the user asks for words, letters or signs (for example: "HOLA", "BIENVENIDO", a specific title or name), you MUST feature the exact word in literal double quotes with bold 3D typography, neon letters, or sculpted letters.
+1. PRESERVE THE EXACT SUBJECT: focus strictly on what the user asked for. Never insert random people or objects unless explicitly requested.
+2. TEXT & TYPOGRAPHY: If the user asks for specific words, letters or signs (for example: "HOLA", "BIENVENIDO", a title or a name), include the EXACT text in literal double quotes. The quoted text is SACRED: never translate it, never translate it, never abbreviate it, never add or remove accents, letters or punctuation. Render it as the main typographic element.
 3. VISUAL COMPOSITION: Add lighting (cinematic, volumetric, studio, or golden hour), balanced color palette, fine materials, crisp textures, and 8k detail.
 4. If aspect ratio is 16:9, specify wide panoramic composition. If 9:16, specify vertical portrait composition. If 1:1, specify symmetrical centered composition.
 5. REMOVE CONVERSATIONAL FILLER: Strip phrases like "hazme una imagen", "create an image of", "dibuja", etc.
-6. Return ONLY the English prompt. No greetings, introductions, quotation wrappers or explanations.`,
+6. NEVER add watermarks, signatures or random lettering that the user did not request.
+7. Return ONLY the English prompt. No greetings, introductions, quotation wrappers or explanations.`,
           });
           if (response?.text) break;
         } catch {
@@ -527,12 +899,66 @@ Strict Rules:
         ? 'vertical 9:16 portrait composition'
         : 'centered 1:1 balanced composition';
 
-  const cleanPrompt = userPrompt.replace(/^(crea|hazme|haz|genera|diseña|dibuja|pinta)\s+(una\s+)?(imagen|foto|dibujo|ilustración)\s*(de|que\s+diga)?\s*:?/i, '').trim();
+  const cleanPrompt = userPrompt.replace(/^(crea|hazme|haz|genera|diseña|dibuja|pinta)\s+(una\s+)?(imagen|foto|dibujo|ilustración)\s*(de|que\s+diga)?\s*:?\s*/i, '').trim();
 
   return `High quality ${orient}, photorealistic, stunning lighting, vivid colors, crisp focus, 8k resolution: ${cleanPrompt}`;
 }
 
-// Web grounding fallback using Wikipedia API and DuckDuckGo instant summary
+// Background-only prompt (used when exact text will be overlaid typographically)
+async function enhanceBackgroundPrompt(
+  userPrompt: string,
+  aspectRatio: '1:1' | '16:9' | '9:16',
+  referenceContext = ''
+): Promise<string> {
+  const geminiAvailable = getFirstAvailableGeminiClient();
+  if (geminiAvailable) {
+    try {
+      let response: any = null;
+      for (const m of GEMINI_CHAT_MODELS) {
+        try {
+          response = await geminiAvailable.client.models.generateContent({
+            model: m,
+            contents: `You are a master AI visual prompt engineer for image diffusion models.
+The user wants a professional background/scenic design. The final typography will be added later by a design engine, so the image must NOT contain any text.
+
+User request: "${userPrompt}"
+Aspect ratio: ${aspectRatio}
+${referenceContext ? `Reference image(s) provided by the user — keep the subject/style consistent with them:\n${referenceContext}` : ''}
+
+Strict Rules:
+1. ABSOLUTELY NO TEXT: no words, no letters, no numbers, no signs, no typography, no writing, no watermarks, no logos. Leave a clean, visually calm central area where typography will be placed later.
+2. Design a stunning professional background that matches the theme, mood and colors the user wants: cinematic lighting, balanced color palette, fine textures, 8k detail.
+3. If aspect ratio is 16:9, wide panoramic composition. If 9:16, vertical portrait composition. If 1:1, symmetrical centered composition.
+4. Strip conversational filler like "hazme una imagen", "que diga ...", "create an image of".
+5. Return ONLY the English prompt. No explanations.`,
+          });
+          if (response?.text) break;
+        } catch {
+          // try next model
+        }
+      }
+
+      const text = response?.text?.trim().replace(/^["']|["']$/g, '');
+      if (text && text.length > 20) {
+        return text;
+      }
+    } catch {
+      // Fallback below
+    }
+  }
+
+  const orient =
+    aspectRatio === '16:9'
+      ? 'wide 16:9 cinematic composition'
+      : aspectRatio === '9:16'
+        ? 'vertical 9:16 portrait composition'
+        : 'centered 1:1 balanced composition';
+
+  return `Professional background design, ${orient}, cinematic lighting, rich colors, fine textures, 8k detail, absolutely no text, no letters, no words, no typography, clean central area for text placement. Theme: ${userPrompt}`;
+}
+
+// Live web search fallback: Wikipedia (ES + EN) full intro extracts + DuckDuckGo instant answers.
+// Used when Google Search Grounding is unavailable or quota-exhausted.
 async function searchLiveWebFallback(query: string): Promise<{
   searchQueries: string[];
   sources: Array<{ title: string; url: string }>;
@@ -541,38 +967,64 @@ async function searchLiveWebFallback(query: string): Promise<{
   const sources: Array<{ title: string; url: string }> = [];
   const searchQueries: string[] = [query];
   let contextSnippet = '';
+  const cleanQ = query.replace(/[?¿!¡]/g, '').trim();
 
-  try {
-    const cleanQ = query.replace(/[?¿!¡]/g, '').trim();
-    const wpRes = await fetch(
-      `https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQ)}&format=json&utf8=1`,
-      { headers: { 'User-Agent': 'NexusAI/1.0 (breitan2012@gmail.com)' } }
-    );
-    if (wpRes.ok) {
-      const data = (await wpRes.json()) as any;
-      const hits = data?.query?.search || [];
-      for (const hit of hits.slice(0, 3)) {
-        const title = hit.title;
-        const url = `https://es.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
-        const snippet = (hit.snippet || '').replace(/<[^>]+>/g, '').trim();
-        sources.push({ title, url });
-        contextSnippet += `[Fuente: ${title} (${url})]: ${snippet}\n`;
+  const wikiExtract = async (lang: 'es' | 'en'): Promise<void> => {
+    try {
+      const srRes = await fetch(
+        `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQ)}&format=json&utf8=1&srlimit=4`,
+        { headers: { 'User-Agent': 'NexusAI/1.0 (nexus-ia)' } }
+      );
+      if (!srRes.ok) return;
+      const srData = (await srRes.json()) as any;
+      const hits = srData?.query?.search || [];
+      // Take the top 3 hits and fetch their full intro extracts (much richer than search snippets)
+      const top = hits.slice(0, 3);
+      if (top.length === 0) return;
+      const titles = top.map((h: any) => h.title);
+      const exRes = await fetch(
+        `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&format=json&titles=${encodeURIComponent(titles.join('|'))}`,
+        { headers: { 'User-Agent': 'NexusAI/1.0 (nexus-ia)' } }
+      );
+      if (!exRes.ok) return;
+      const exData = (await exRes.json()) as any;
+      const pages = Object.values(exData?.query?.pages || {}) as any[];
+      for (const page of pages) {
+        const extract: string = (page?.extract || '').trim();
+        if (!extract || extract.length < 60) continue;
+        const url = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(String(page.title).replace(/ /g, '_'))}`;
+        if (!sources.some((s) => s.url === url)) {
+          sources.push({ title: page.title, url });
+        }
+        contextSnippet += `[Fuente: ${page.title} (${url})]: ${extract.slice(0, 1100)}\n\n`;
       }
+    } catch {
+      // Ignore Wikipedia error
     }
-  } catch {
-    // Ignore Wikipedia fallback error
+  };
+
+  await wikiExtract('es');
+  if (contextSnippet.length < 200) {
+    await wikiExtract('en');
   }
 
   try {
-    const ddgRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`);
+    const ddgRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
     if (ddgRes.ok) {
       const ddgData = (await ddgRes.json()) as any;
-      if (ddgData.Heading && ddgData.AbstractURL) {
+      if (ddgData?.Heading && ddgData?.AbstractURL) {
         if (!sources.some((s) => s.url === ddgData.AbstractURL)) {
           sources.push({ title: ddgData.Heading, url: ddgData.AbstractURL });
         }
         if (ddgData.Abstract) {
           contextSnippet += `[Resumen Enciclopédico: ${ddgData.Heading}]: ${ddgData.Abstract}\n`;
+        }
+      }
+      // Related topics often carry the actual answer for sports/results queries
+      for (const topic of (ddgData?.RelatedTopics || []).slice(0, 3)) {
+        if (topic?.Text && topic?.FirstURL && !sources.some((s) => s.url === topic.FirstURL)) {
+          sources.push({ title: (topic.Text || '').split(' - ')[0].slice(0, 80), url: topic.FirstURL });
+          contextSnippet += `[Tema relacionado: ${topic.FirstURL}]: ${topic.Text}\n`;
         }
       }
     }
@@ -583,9 +1035,42 @@ async function searchLiveWebFallback(query: string): Promise<{
   return { searchQueries, sources, contextSnippet };
 }
 
+// Detect questions that require live web information (current events, results, news...)
+// NOTE: matched against de-accented lowercase text
+const LIVE_INFO_KEYWORDS = [
+  'quien gano', 'quien es el campeon', 'ganador', 'ganadora', 'campeon', 'campeona', 'campeonato',
+  'resultado', 'resultados', 'marcador', 'goles', 'mundial', 'olimpic', 'olimpiada', 'champions',
+  'noticias', 'noticia', 'ultima hora', 'de hoy', 'hoy', 'actualidad', 'actualmente', 'actualizado',
+  'reciente', 'recientes', 'ultimo', 'ultima', 'estreno', 'lanzamiento', 'salio',
+  'precio', 'precios', 'cotizacion', 'dolar', 'inflacion', 'clima', 'temperatura',
+  'eleccion', 'elecciones', 'presidente', 'primera ministra', 'primer ministro', 'gobernador', 'alcalde', 'alcaldesa',
+  'partido', 'torneo', 'temporada', 'fichaje', 'transferencia', 'seleccion',
+  'premio', 'nobel', 'oscar', 'grammy', 'balon de oro',
+  'murio', 'fallecio', 'nacio', 'cumpleanos', 'aniversario',
+  'hackeo', 'accidente', 'terremoto', 'huracan', 'tifon', 'incendio', 'inundacion',
+  'version', 'update', 'actualizacion', 'lanzo', 'anuncio',
+  'sigue siendo', 'record',
+];
+const LIVE_INFO_PATTERNS = new RegExp(`\\b(${LIVE_INFO_KEYWORDS.map((k) => k.replace(/ /g, '\\s+')).join('|')})\\b`, 'i');
+// Words that end in 's' or need suffix flexibility handled separately
+const LIVE_INFO_SUFFIX = /\b(liga|copa|final|edad|juego|liga|racha|copas|finales|goles)\b/i;
+
+const RECENT_YEAR_PATTERNS = /\b(2024|2025|2026|2027)\b/;
+
+function shouldSearchLive(text: string, explicit: boolean): boolean {
+  if (explicit) return true;
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (LIVE_INFO_PATTERNS.test(t) || LIVE_INFO_SUFFIX.test(t)) return true;
+  // Question about a recent year → needs verification
+  if (RECENT_YEAR_PATTERNS.test(t) && /[?¿]|quien|que\b|cuando|como|donde|cual|resultado|gano|paso|sucedio|ocurrio/.test(t)) {
+    return true;
+  }
+  return false;
+}
+
 // Chat endpoint with Intelligent Fastest-Model Selection, Web Grounding, Focus Modes, and SSE streaming
 app.post('/api/chat', async (req: Request, res: Response) => {
-  const { messages, attachments, userName, focusMode, webSearch } = req.body;
+  const { messages, attachments, userName, focusMode, webSearch, studentSubject } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: 'Debes proporcionar al menos un mensaje.' });
@@ -607,11 +1092,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     const userPromptRaw = lastMessage.content || '';
 
     // Detect if Web Grounding was explicitly requested or inferred from search intent
-    const wantsWebSearch =
-      Boolean(webSearch) ||
-      /\b(busca en (internet|la web)|noticias (hoy|actuales)|tiempo actual|clima hoy|última hora|precio actual de|información reciente|actualidad|año 2026|datos en vivo)\b/i.test(
-        userPromptRaw
-      );
+    const wantsWebSearch = shouldSearchLive(userPromptRaw, Boolean(webSearch));
 
     // Check strict identity / creator question
     const normText = userPromptRaw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -648,8 +1129,24 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       return;
     }
 
-    const currentDateStr = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
-    const temporalContext = `\n\n[CONTEXTO TEMPORAL DEL SISTEMA]\nFecha actual del sistema: ${currentDateStr} (Año 2026). Cualquier razonamiento, cálculo de edad, evento reciente o búsqueda en la web debe basarse en el año actual (2026).`;
+    // ── Local deterministic math short-circuit: exact answers with zero latency ──
+    if (
+      (!Array.isArray(attachments) || attachments.length === 0) &&
+      previousTurns.length === 0 &&
+      focusMode !== 'deep'
+    ) {
+      const localMathAnswer = tryLocalMath(userPromptRaw);
+      if (localMathAnswer !== null) {
+        sendEvent('provider', { name: 'Nexus Qwen' });
+        sendEvent('telemetry', { latencyMs: 5, providerName: 'Nexus Qwen' });
+        sendEvent('token', { text: localMathAnswer });
+        sendEvent('done', { success: true });
+        res.end();
+        return;
+      }
+    }
+
+    const temporalContext = `\n\n[CONTEXTO TEMPORAL DEL SISTEMA]\nFecha actual del sistema: ${CURRENT_DATE_ES}. Cualquier razonamiento, cálculo de edad, evento reciente o búsqueda en la web debe basarse en esta fecha.`;
 
     const basePrompt = userName?.trim()
       ? `${NEXUS_SYSTEM_INSTRUCTION}${temporalContext}\n\n9. El usuario que interactúa contigo se llama "${userName.trim()}". Salúdalo o dirígete a él cordialmente por su nombre cuando corresponda. Nunca uses el término "operador" y jamás confundas el nombre del usuario con el nombre de tu creador (Breitan Céspedes Monge).`
@@ -675,6 +1172,15 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         modeInstruction =
           '\n\n[MODO ACTIVO: CREATIVO & VISUAL]\nDespliega imaginación, expresividad descriptiva, metáforas vívidas, riqueza conceptual y sugerencias de diseño estético o narrativa cinematográfica.';
         break;
+      case 'student': {
+        targetTemperature = 0.2;
+        const subject: StudentSubject =
+          studentSubject && STUDENT_SUBJECT_INSTRUCTIONS[studentSubject as StudentSubject]
+            ? (studentSubject as StudentSubject)
+            : 'general';
+        modeInstruction = `\n${STUDENT_SUBJECT_INSTRUCTIONS[subject]}`;
+        break;
+      }
       case 'fast':
       default:
         targetTemperature = 0.4;
@@ -683,7 +1189,10 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         break;
     }
 
-    const currentSystemPrompt = `${basePrompt}${modeInstruction}`;
+    // Brevity / verbosity intent adaptation
+    const intentInstruction = buildIntentInstruction(detectResponseIntent(userPromptRaw));
+
+    const currentSystemPrompt = `${basePrompt}${modeInstruction}${intentInstruction}`;
 
     // Extract attachments (images or documents)
     let documentContext = '';
@@ -775,10 +1284,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     candidates.sort((a, b) => a.averageLatency - b.averageLatency);
 
     // Preferred models for Gemini based on Focus Mode
-    const preferredGeminiModels =
-      focusMode === 'deep'
-        ? ['gemini-3.1-pro-preview', 'gemini-3.8-flash', 'gemini-3.7-flash']
-        : ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+    const preferredGeminiModels = focusMode === 'deep' ? GEMINI_DEEP_MODELS : GEMINI_CHAT_MODELS;
 
     // Try candidates in order of fastest response
     for (const candidate of candidates) {
@@ -879,7 +1385,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
             if (wantsWebSearch) {
               // 1. Try Google Search Grounding with official models
-              for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash']) {
+              for (const m of GEMINI_CHAT_MODELS) {
                 try {
                   const currentTurnParts = [...baseTurnParts, { text: enhancedUserPrompt }];
                   const allContents = [...formattedHistory, { role: 'user', parts: currentTurnParts }];
@@ -893,7 +1399,10 @@ app.post('/api/chat', async (req: Request, res: Response) => {
                     },
                   });
                   break;
-                } catch {
+                } catch (modelErr: any) {
+                  if (/429|RESOURCE_EXHAUSTED|quota/i.test(String(modelErr?.message || modelErr || ''))) {
+                    providerMetrics[candidate.id].rateLimitedUntil = Date.now() + 60000;
+                  }
                   // Tool error or quota; try next or fall back to public live web search
                 }
               }
@@ -925,7 +1434,10 @@ app.post('/api/chat', async (req: Request, res: Response) => {
                       },
                     });
                     break;
-                  } catch {
+                  } catch (modelErr: any) {
+                    if (/429|RESOURCE_EXHAUSTED|quota/i.test(String(modelErr?.message || modelErr || ''))) {
+                      providerMetrics[candidate.id].rateLimitedUntil = Date.now() + 60000;
+                    }
                     // Try next model
                   }
                 }
@@ -953,37 +1465,53 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
             if (responseStream) {
               let receivedAnyToken = false;
+              try {
+                for await (const chunk of responseStream) {
+                  const text = chunk.text;
+                  if (text) {
+                    receivedAnyToken = true;
+                    sendEvent('token', { text });
+                  }
 
-              for await (const chunk of responseStream) {
-                const text = chunk.text;
-                if (text) {
-                  receivedAnyToken = true;
-                  sendEvent('token', { text });
-                }
-
-                // Extract Grounding metadata (Google Search citations and queries)
-                const gm = chunk.candidates?.[0]?.groundingMetadata;
-                if (gm) {
-                  if (gm.webSearchQueries && Array.isArray(gm.webSearchQueries)) {
-                    for (const q of gm.webSearchQueries) {
-                      if (q && !searchQueries.includes(q)) {
-                        searchQueries.push(q);
+                  // Extract Grounding metadata (Google Search citations and queries)
+                  const gm = chunk.candidates?.[0]?.groundingMetadata;
+                  if (gm) {
+                    if (gm.webSearchQueries && Array.isArray(gm.webSearchQueries)) {
+                      for (const q of gm.webSearchQueries) {
+                        if (q && !searchQueries.includes(q)) {
+                          searchQueries.push(q);
+                        }
                       }
                     }
-                  }
-                  if (gm.groundingChunks && Array.isArray(gm.groundingChunks)) {
-                    for (const gc of gm.groundingChunks) {
-                      if (gc.web?.uri && gc.web?.title) {
-                        if (!sources.some((s) => s.url === gc.web!.uri)) {
-                          sources.push({
-                            title: gc.web.title,
-                            url: gc.web.uri,
-                          });
+                    if (gm.groundingChunks && Array.isArray(gm.groundingChunks)) {
+                      for (const gc of gm.groundingChunks) {
+                        if (gc.web?.uri && gc.web?.title) {
+                          if (!sources.some((s) => s.url === gc.web!.uri)) {
+                            sources.push({
+                              title: gc.web.title,
+                              url: gc.web.uri,
+                            });
+                          }
                         }
                       }
                     }
                   }
                 }
+              } catch (streamErr: any) {
+                // Mid-stream failure: if nothing was emitted yet, fail over to the next candidate
+                const errMsg = String(streamErr?.message || streamErr || '');
+                if (/429|RESOURCE_EXHAUSTED|quota/i.test(errMsg)) {
+                  providerMetrics[candidate.id].rateLimitedUntil = Date.now() + 60000;
+                }
+                if (receivedAnyToken) {
+                  // Partial answer already delivered: close gracefully instead of mixing providers
+                  updateMetric(candidate.id, Date.now() - tStart, true);
+                  sendEvent('telemetry', { latencyMs: Date.now() - tStart, providerName: 'Nexus Qwen' });
+                  sendEvent('done', { success: true });
+                  res.end();
+                  return;
+                }
+                throw streamErr;
               }
 
               if (receivedAnyToken) {
@@ -1168,10 +1696,11 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   }
 });
 
-// Image generation endpoint powered by NVIDIA NIM (FLUX.2-klein-4b, FLUX.1-dev, Qwen Image & SD 3.5 Large)
-// with Automatic Prompt Enhancement and Distributed Rotation across 10 NVIDIA API Keys
+// Image generation endpoint powered by NVIDIA NIM (FLUX.2-klein-4b, FLUX.1-dev)
+// with Exact-Text Typography Overlay, Reference Images, Vision Verification
+// and Distributed Rotation across the 10 NVIDIA API Keys.
 app.post('/api/generate-image', async (req: Request, res: Response) => {
-  const { prompt } = req.body;
+  const { prompt, referenceImages } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
     res.status(400).json({ error: 'Debes proporcionar un texto descriptivo para generar la imagen.' });
@@ -1201,8 +1730,19 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Automatically enhance the user's prompt into a complete, professional photographic/art prompt
-    const enhancedPrompt = await enhanceImagePrompt(prompt, aspectRatio);
+    // 0. Extract the EXACT text the user wants rendered (if any)
+    const { exactText, cleanPrompt } = extractExactText(prompt);
+
+    // 0.1 Analyze reference images (if provided) for style guidance
+    let referenceContext = '';
+    if (Array.isArray(referenceImages) && referenceImages.length > 0) {
+      referenceContext = await describeReferenceImages(referenceImages);
+    }
+
+    // 1. Enhance the prompt: background-only (when we overlay text) or full design
+    const enhancedPrompt = exactText
+      ? await enhanceBackgroundPrompt(cleanPrompt, aspectRatio, referenceContext)
+      : await enhanceImagePrompt(prompt, aspectRatio, referenceContext);
 
     // Calculate dimensions based on aspect ratio (supported by FLUX models)
     let width = 1024;
@@ -1215,11 +1755,12 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       height = 1344;
     }
 
-    let imageUrl: string | null = null;
+    let imageBuffer: Buffer | null = null;
+    let outputMime = 'image/jpeg';
     let modelUsed = 'FLUX.2-klein-4b';
     let lastError = 'No se pudo generar la imagen.';
 
-    // Model candidate configurations prioritized by performance and verified availability
+    // Model candidate configurations (verified live availability; dead endpoints removed)
     const imageCandidates = [
       {
         name: 'FLUX.2-klein-4b',
@@ -1244,32 +1785,10 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
           seed: 0,
         }),
       },
-      {
-        name: 'Qwen-Image',
-        dedicatedKey: activeKeys.NVIDIA_KEY_QWEN_IMAGEN,
-        url: 'https://ai.api.nvidia.com/v1/genai/qwen/qwen-image',
-        getBody: (p: string) => ({
-          prompt: p,
-          steps: 25,
-          width,
-          height,
-        }),
-      },
-      {
-        name: 'Stable Diffusion 3.5 Large',
-        dedicatedKey: activeKeys.NVIDIA_KEY_SD_35_LARGE,
-        url: 'https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-3.5-large',
-        getBody: (p: string) => ({
-          prompt: p,
-          aspect_ratio: aspectRatio,
-          mode: 'base',
-        }),
-      },
     ];
 
     // Iterate through candidates and keys with automatic failover
     for (const candidate of imageCandidates) {
-      // Keys to try for this model: dedicated key first (if configured), then the shared pool
       const keysToTry: string[] = [];
       if (candidate.dedicatedKey) {
         keysToTry.push(candidate.dedicatedKey.replace(/^Bearer\s+/i, '').trim());
@@ -1289,13 +1808,14 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
               Accept: 'application/json',
             },
             body: JSON.stringify(bodyPayload),
+            signal: AbortSignal.timeout(120_000),
           });
 
           if (response.ok) {
             const data = (await response.json()) as any;
             const b64 = data?.artifacts?.[0]?.base64;
             if (b64) {
-              imageUrl = `data:image/jpeg;base64,${b64}`;
+              imageBuffer = Buffer.from(b64, 'base64');
               modelUsed = candidate.name;
               break;
             }
@@ -1308,14 +1828,50 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
         }
       }
 
-      if (imageUrl) break;
+      if (imageBuffer) break;
     }
 
-    if (!imageUrl) {
+    if (!imageBuffer) {
       res.status(502).json({
         error: `Error al generar la imagen con los modelos de NVIDIA NIM: ${lastError}`,
       });
       return;
+    }
+
+    // 2. Exact-text typographic overlay: guarantees pixel-perfect text
+    //    (accents, punctuation, ¿? ¡! — impossible for diffusion models to garble)
+    let textOverlay = false;
+    if (exactText) {
+      try {
+        const overlayBuffer = await renderTextOverlay(width, height, exactText);
+        imageBuffer = await sharp(imageBuffer)
+          .resize(width, height, { fit: 'cover' })
+          .composite([{ input: overlayBuffer }])
+          .png()
+          .toBuffer();
+        outputMime = 'image/png';
+        textOverlay = true;
+      } catch {
+        // If overlay fails, deliver the raw generated image rather than an error
+      }
+    }
+
+    const finalBase64 = imageBuffer.toString('base64');
+    const imageUrl = `data:${outputMime};base64,${finalBase64}`;
+
+    // 3. Vision verification: transcribe the text back and compare with the request
+    let textVerified: boolean | null = null;
+    let transcribedText = '';
+    if (exactText && textOverlay) {
+      try {
+        const verification = await verifyImageText(finalBase64, exactText);
+        if (verification) {
+          textVerified = verification.verified;
+          transcribedText = verification.transcribed;
+        }
+      } catch {
+        // Verification is best-effort; never block delivery
+      }
     }
 
     res.json({
@@ -1325,6 +1881,9 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
       enhancedPrompt, // improved professional prompt
       aspectRatio,
       model: `NVIDIA NIM (${modelUsed})`,
+      exactText: exactText || undefined,
+      textOverlay,
+      textVerified: textVerified === null ? undefined : textVerified,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error al generar la imagen.';

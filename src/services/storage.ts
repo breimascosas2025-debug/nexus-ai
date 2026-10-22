@@ -1,15 +1,38 @@
-﻿import { ChatThread, Message, FocusMode, GalleryImage } from '../types';
+﻿import { ChatThread, Message, FocusMode, GalleryImage, StudentSubject } from '../types';
 
 const THREADS_KEY = 'nexus_ai_threads_v1';
 const ACTIVE_THREAD_ID_KEY = 'nexus_ai_active_thread_v1';
 const USER_NAME_KEY = 'nexus_user_name';
 const FOCUS_MODE_KEY = 'nexus_focus_mode_v1';
 const GALLERY_KEY = 'nexus_image_gallery_v1';
+const STUDENT_SUBJECT_KEY = 'nexus_student_subject_v1';
+
+const VALID_SUBJECTS: StudentSubject[] = ['general', 'matematicas', 'ciencias', 'sociales', 'espanol', 'ingles', 'frances'];
+
+export function getStoredStudentSubject(): StudentSubject {
+  try {
+    const val = localStorage.getItem(STUDENT_SUBJECT_KEY) as StudentSubject;
+    if (val && VALID_SUBJECTS.includes(val)) {
+      return val;
+    }
+  } catch {
+    // fallback
+  }
+  return 'general';
+}
+
+export function setStoredStudentSubject(subject: StudentSubject): void {
+  try {
+    localStorage.setItem(STUDENT_SUBJECT_KEY, subject);
+  } catch {
+    // Ignore
+  }
+}
 
 export function getStoredFocusMode(): FocusMode {
   try {
     const val = localStorage.getItem(FOCUS_MODE_KEY) as FocusMode;
-    if (val && ['fast', 'deep', 'code', 'creative'].includes(val)) {
+    if (val && ['fast', 'deep', 'code', 'creative', 'student'].includes(val)) {
       return val;
     }
   } catch {

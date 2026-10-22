@@ -16,6 +16,7 @@ const FOCUS_MODE_LABELS: Record<FocusMode, { label: string; icon: string; color:
   deep: { label: 'Razonamiento Profundo', icon: 'psychology', color: 'text-purple-300 border-purple-500/30 bg-purple-950/40' },
   code: { label: 'Arquitecto de Código', icon: 'terminal', color: 'text-cyan-300 border-cyan-500/30 bg-cyan-950/40' },
   creative: { label: 'Creativo & Visual', icon: 'palette', color: 'text-pink-300 border-pink-500/30 bg-pink-950/40' },
+  student: { label: 'Modo Estudiante', icon: 'school', color: 'text-emerald-300 border-emerald-500/30 bg-emerald-950/40' },
 };
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -388,6 +389,34 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               <span>Guardar</span>
             </button>
           </div>
+
+          {/* Exact-text verification badge */}
+          {message.generatedImage.exactText && (
+            <div className="px-2 pb-2 flex items-center gap-1.5 text-[11px]">
+              {message.generatedImage.textVerified === true ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 font-medium">
+                  <span className="material-symbols-outlined text-sm">check_circle</span>
+                  <span className="truncate">
+                    Texto verificado: "{message.generatedImage.exactText.replace(/\n/g, ' ')}"
+                  </span>
+                </span>
+              ) : message.generatedImage.textVerified === false ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-400/40 text-amber-300 font-medium">
+                  <span className="material-symbols-outlined text-sm">warning</span>
+                  <span className="truncate">
+                    Revisa el texto renderizado (verificación automática no disponible)
+                  </span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 font-medium">
+                  <span className="material-symbols-outlined text-sm">text_fields</span>
+                  <span className="truncate">
+                    Tipografía exacta aplicada: "{message.generatedImage.exactText.replace(/\n/g, ' ')}"
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Expandable Enhanced Prompt Section */}
           {message.generatedImage.enhancedPrompt && (

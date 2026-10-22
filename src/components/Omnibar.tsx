@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, ChangeEvent, KeyboardEvent } from 'react';
-import { Attachment } from '../types';
+import { Attachment, FocusMode, StudentSubject } from '../types';
 
 interface OmnibarProps {
   onSendMessage: (content: string, attachments: Attachment[], webSearch?: boolean) => void;
@@ -9,7 +9,20 @@ interface OmnibarProps {
   onTriggerImageMode?: () => void;
   isWebSearchActive: boolean;
   onToggleWebSearch: () => void;
+  focusMode?: FocusMode;
+  studentSubject?: StudentSubject;
+  onStudentSubjectChange?: (subject: StudentSubject) => void;
 }
+
+const SUBJECTS: Array<{ id: StudentSubject; label: string; icon: string }> = [
+  { id: 'general', label: 'General', icon: 'auto_stories' },
+  { id: 'matematicas', label: 'Matemáticas', icon: 'calculate' },
+  { id: 'ciencias', label: 'Ciencias', icon: 'science' },
+  { id: 'sociales', label: 'Estudios Sociales', icon: 'public' },
+  { id: 'espanol', label: 'Español', icon: 'menu_book' },
+  { id: 'ingles', label: 'Inglés', icon: 'translate' },
+  { id: 'frances', label: 'Francés', icon: 'language' },
+];
 
 export const Omnibar: React.FC<OmnibarProps> = ({
   onSendMessage,
@@ -19,6 +32,9 @@ export const Omnibar: React.FC<OmnibarProps> = ({
   onTriggerImageMode,
   isWebSearchActive,
   onToggleWebSearch,
+  focusMode,
+  studentSubject = 'general',
+  onStudentSubjectChange,
 }) => {
   const [inputText, setInputText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -169,6 +185,32 @@ export const Omnibar: React.FC<OmnibarProps> = ({
             </div>
           )}
 
+          {/* Student subject picker (visible only in Student Mode) */}
+          {focusMode === 'student' && onStudentSubjectChange && (
+            <div className="mb-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+              <span className="material-symbols-outlined text-sm text-emerald-400 flex-shrink-0 mr-0.5">
+                school
+              </span>
+              {SUBJECTS.map((s) => {
+                const active = s.id === studentSubject;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => onStudentSubjectChange(s.id)}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium whitespace-nowrap flex-shrink-0 transition-all cursor-pointer border ${
+                      active
+                        ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/60 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                        : 'bg-slate-800/60 text-slate-400 border-slate-700/70 hover:text-emerald-300 hover:border-emerald-500/40'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xs">{s.icon}</span>
+                    <span>{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Active Web Search Indicator Pill */}
           {isWebSearchActive && (
             <div className="mb-1.5 px-2.5 py-0.5 rounded-lg bg-cyan-950/70 border border-cyan-400/40 text-[11px] text-cyan-300 font-mono flex items-center justify-between w-fit gap-2">
@@ -280,9 +322,11 @@ export const Omnibar: React.FC<OmnibarProps> = ({
                 placeholder={
                   isImageMode
                     ? 'Describe la imagen que deseas crear...'
-                    : isWebSearchActive
-                      ? 'Pregunta a Nexus Qwen con búsqueda web en vivo...'
-                      : 'Pregunta a Nexus Qwen o pide crear una imagen...'
+                    : focusMode === 'student'
+                      ? 'Pregunta a tu tutor Nexus Qwen (foto de ejercicio, tarea, duda...)'
+                      : isWebSearchActive
+                        ? 'Pregunta a Nexus Qwen con búsqueda web en vivo...'
+                        : 'Pregunta a Nexus Qwen o pide crear una imagen...'
                 }
                 className="w-full bg-transparent border-0 text-slate-100 placeholder:text-slate-500 focus:ring-0 text-sm md:text-base py-2 px-1 focus:outline-none resize-none leading-relaxed"
               />

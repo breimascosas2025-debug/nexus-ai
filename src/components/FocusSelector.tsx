@@ -51,6 +51,15 @@ const MODES: Array<{
     borderColor: 'border-pink-400/40',
     badgeBg: 'bg-pink-500/20 text-pink-300',
   },
+  {
+    id: 'student',
+    label: 'Modo Estudiante',
+    icon: 'school',
+    tagline: 'Tutor académico en 6 materias: mate, ciencias, sociales, español, inglés y francés',
+    color: 'text-emerald-300',
+    borderColor: 'border-emerald-400/40',
+    badgeBg: 'bg-emerald-500/20 text-emerald-300',
+  },
 ];
 
 export const FocusSelector: React.FC<FocusSelectorProps> = ({ currentMode, onSelectMode }) => {
